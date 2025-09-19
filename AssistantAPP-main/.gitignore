@@ -1,0 +1,33 @@
+# builds & deps
+.next/
+dist/
+coverage/
+node_modules/
+.prisma/
+
+# caches
+.npm-cache/
+.yarn/
+.pnpm-store/
+
+# env & secrets
+.env
+.env.*
+!.env.example
+sa.json
+*.key
+*.pem
+
+# logs & misc
+*.log
+.next-dev.log
+.DS_Store
+
+# editor junk
+.vscode/
+.idea/
+
+# backups/temp
+*.bak
+*.bak.*
+*~

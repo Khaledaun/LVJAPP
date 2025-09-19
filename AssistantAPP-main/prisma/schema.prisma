@@ -1,0 +1,144 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../.prisma/client"
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  role          Role      @default(CLIENT)
+  password      String?
+  casesAsClient Case[]    @relation("CaseClient")
+  casesAsManager Case[]   @relation("CaseManager")
+  casesAsLawyer  Case[]   @relation("Lawyer")
+}
+
+model Case {
+  id                   String    @id @default(cuid())
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  title                String
+  caseNumber           String    @unique
+  totalFee             Int
+  currency             String
+  applicantName        String
+  applicantEmail       String
+  overallStatus        CaseStatus
+  stage                String
+  urgencyLevel         String
+  completionPercentage Int
+  clientId             String?
+  client               User?     @relation("CaseClient", fields: [clientId], references: [id])
+  caseManagerId        String?
+  caseManager          User?     @relation("CaseManager", fields: [caseManagerId], references: [id])
+  lawyerId             String?
+  lawyer               User?     @relation("Lawyer", fields: [lawyerId], references: [id])
+  documents            Document[]
+  payments             Payment[]
+  timelineEvents       TimelineEvent[]
+  internalMessages     Message[]
+  externalPartners     ExternalPartner[]
+  externalComms        ExternalCommunication[]
+}
+
+model PartnerRole {
+  id       String            @id @default(cuid())
+  name     String            @unique
+  partners ExternalPartner[]
+}
+
+model ExternalPartner {
+  id     String    @id @default(cuid())
+  name   String
+  email  String?
+  type   String
+  case   Case      @relation(fields: [caseId], references: [id])
+  caseId String
+  role   PartnerRole @relation(fields: [roleId], references: [id])
+  roleId String
+}
+
+model ExternalCommunication {
+  id        String    @id @default(cuid())
+  createdAt DateTime  @default(now())
+  direction Direction
+  body      String    @db.Text
+  sender    String
+  case      Case      @relation(fields: [caseId], references: [id])
+  caseId    String
+}
+
+model Document {
+  id     String   @id @default(cuid())
+  name   String
+  state  DocState
+  case   Case     @relation(fields: [caseId], references: [id])
+  caseId String
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  amount        Int
+  currency      String
+  status        PaymentStatus
+  description   String
+  invoiceNumber String
+  case          Case          @relation(fields: [caseId], references: [id])
+  caseId        String
+}
+
+model TimelineEvent {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  details   String
+  case      Case     @relation(fields: [caseId], references: [id])
+  caseId    String
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  body      String   @db.Text
+  case      Case     @relation(fields: [caseId], references: [id])
+  caseId    String
+}
+
+enum Role {
+  CLIENT
+  STAFF
+  ADMIN
+}
+
+enum CaseStatus {
+  new
+  documents_pending
+  in_review
+  submitted
+  approved
+  denied
+}
+
+enum DocState {
+  requested
+  uploaded
+  approved
+  rejected
+}
+
+enum PaymentStatus {
+  paid
+  unpaid
+  overdue
+}
+
+enum Direction {
+  INCOMING
+  OUTGOING
+}
+
