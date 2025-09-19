@@ -218,7 +218,7 @@ export default function BillingDashboard({ className }: BillingDashboardProps) {
         </div>
         <div className="flex items-center space-x-2">
           <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-            <SelectTrigger className="w-32">
+            <SelectTrigger className="w-32" data-testid="period-selector">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -233,11 +233,12 @@ export default function BillingDashboard({ className }: BillingDashboardProps) {
             size="sm"
             onClick={handleRefresh}
             disabled={refreshing}
+            data-testid="refresh-button"
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" data-testid="export-button">
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
