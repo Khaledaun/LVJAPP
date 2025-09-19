@@ -8,6 +8,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { CaseTabs } from '@/components/case/CaseTabs'
 import SimpleTopbar from '@/components/site/SimpleTopbar'
+import { TrafficLightBadge, useTrafficLightFeature, type TrafficLightStatus } from '@/components/ui/TrafficLightBadge'
 
 type TabKey = 'overview' | 'documents' | 'messages' | 'payments'
 const fetcher = (u: string) => fetch(u).then(r => r.json())
@@ -86,6 +87,7 @@ function Overview({ id }: { id: string }) {
 }
 
 function Documents({ id }: { id: string }) {
+  const isTrafficLightEnabled = useTrafficLightFeature()
   const { data, mutate } = useSWR<{ items: { id: string; name: string; state: string; rejectionReason?: string }[] }>(`/api/cases/${id}/documents`, fetcher)
   const [name, setName] = useState('Bank Statements (PDF)')
   const [liveMsg, setLiveMsg] = useState<string | null>(null)
@@ -174,10 +176,23 @@ function Documents({ id }: { id: string }) {
   }
 
   const items = (data?.items ?? []).map(d => ({ ...d, state: (d.state || '').toLowerCase() }))
-  const badge = (s: string) =>
+  
+  // Legacy badge function for backward compatibility
+  const legacyBadge = (s: string) =>
     s === 'approved' ? 'bg-green-100' :
     s === 'uploaded' ? 'bg-blue-100' :
     s === 'rejected' ? 'bg-red-100'  : 'bg-gray-100'
+
+  // Map document states to traffic light statuses
+  const mapDocumentStateToTrafficLight = (state: string): TrafficLightStatus => {
+    switch (state.toLowerCase()) {
+      case 'approved': return 'approved'
+      case 'uploaded': return 'pending_review'
+      case 'rejected': return 'rejected'
+      case 'requested': return 'not_started'
+      default: return 'not_started'
+    }
+  }
 
   return (
     <section className="space-y-3">
@@ -206,7 +221,16 @@ function Documents({ id }: { id: string }) {
                 <div className="text-xs text-muted-foreground">{d.rejectionReason ? `Rejected: ${d.rejectionReason}` : '—'}</div>
               </div>
               <div className="flex items-center gap-2">
-                <span className={`text-xs px-2 py-1 rounded ${badge(d.state)}`}>{d.state}</span>
+                {isTrafficLightEnabled ? (
+                  <TrafficLightBadge 
+                    status={mapDocumentStateToTrafficLight(d.state)} 
+                    size="sm"
+                    showIcon={true}
+                    showText={true}
+                  />
+                ) : (
+                  <span className={`text-xs px-2 py-1 rounded ${legacyBadge(d.state)}`}>{d.state}</span>
+                )}
                 <button onClick={() => cycle(d.id, d.state)} className="text-sm px-2 py-1 border rounded">Advance</button>
               </div>
             </div>

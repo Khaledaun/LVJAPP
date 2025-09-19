@@ -1,10 +1,12 @@
 'use client'
 import React from 'react'
 import type { JourneyStatus } from '@/module2-gemini/types'
+import { TrafficLightBadge, useTrafficLightFeature, type TrafficLightStatus } from '@/components/ui/TrafficLightBadge'
 
 interface Item { id: string; title: string; status: JourneyStatus; due_date?: string }
 
-const badge = (s: JourneyStatus) => {
+// Legacy badge function for backward compatibility
+const legacyBadge = (s: JourneyStatus) => {
   const map: Record<JourneyStatus, string> = {
     not_started: 'bg-gray-200 text-gray-700',
     in_progress: 'bg-blue-200 text-blue-800',
@@ -15,6 +17,8 @@ const badge = (s: JourneyStatus) => {
 }
 
 export default function StatusTimeline({ stages }: { stages: Item[] }) {
+  const isTrafficLightEnabled = useTrafficLightFeature()
+
   return (
     <ul className="space-y-2">
       {stages.map(s => (
@@ -23,7 +27,18 @@ export default function StatusTimeline({ stages }: { stages: Item[] }) {
             <div className="font-medium">{s.title}</div>
             {s.due_date && <div className="text-xs text-gray-500">Due: {s.due_date}</div>}
           </div>
-          <span className={`px-2 py-0.5 rounded ${badge(s.status)}`}>{s.status}</span>
+          {isTrafficLightEnabled ? (
+            <TrafficLightBadge 
+              status={s.status as TrafficLightStatus} 
+              size="sm"
+              showIcon={true}
+              showText={true}
+            />
+          ) : (
+            <span className={`px-2 py-0.5 rounded ${legacyBadge(s.status)}`}>
+              {s.status}
+            </span>
+          )}
         </li>
       ))}
     </ul>
