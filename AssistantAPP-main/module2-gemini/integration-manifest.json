@@ -1,0 +1,8 @@
+{
+  "apiRoutes": ["/api/documents", "/api/journey"],
+  "components": ["DocumentUploader", "DocumentList", "DocumentViewer", "JourneyTracker", "StatusTimeline", "ProgressBar"],
+  "hooks": ["useDocuments", "useJourney"],
+  "dependencies": [],
+  "environmentVariables": ["FIREBASE_PROJECT_ID", "FIREBASE_CLIENT_EMAIL", "FIREBASE_PRIVATE_KEY"],
+  "sharedTypes": ["CaseDocument", "JourneyStage", "JourneySummary", "DocumentStatus", "JourneyStatus"]
+}

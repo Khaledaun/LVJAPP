@@ -1,0 +1,8 @@
+{
+  "apiRoutes": ["/api/messages", "/api/payments", "/api/reports"],
+  "components": ["ChatInterface", "MessageCenter", "NotificationSystem", "PaymentSystem", "ReportGenerator", "AdminDashboard"],
+  "hooks": ["useMessages", "usePayments"],
+  "dependencies": [],
+  "environmentVariables": ["SENDGRID_API_KEY", "MAIL_FROM", "STRIPE_SECRET_KEY", "PUBLIC_BASE_URL"],
+  "sharedTypes": ["InternalMessage", "Payment", "PaymentStatus", "PaymentMethod", "Role"]
+}
