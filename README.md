@@ -255,3 +255,195 @@ SKIP_AUTH=0
 
 ### Support
 For technical support or questions about the Service Type Management feature, contact the development team or create an issue in the repository.
+
+## Status Change Notification System
+
+### Overview
+The Status Change Notification System automatically notifies LVJ Admin when case statuses are updated, providing real-time visibility into case progression and enabling prompt administrative action.
+
+### Features
+- **Real-time Notifications**: Automatic email notifications to admin when case status changes
+- **Comprehensive Details**: Includes case ID, applicant info, previous/new status, timestamp, and direct links
+- **Feature Flag Support**: Safe rollout capability with `ENABLE_STATUS_NOTIFICATIONS` environment variable
+- **Audit Logging**: Complete audit trail of all status changes for compliance and debugging
+- **Development Mode**: Mock notifications for testing without email delivery
+
+### API Endpoint
+```
+PATCH /api/cases/[id]/status
+```
+
+**Request:**
+```json
+{
+  "status": "new|documents_pending|in_review|submitted|approved|denied"
+}
+```
+
+**Response:**
+```json
+{
+  "case": { /* updated case object */ },
+  "notificationSent": true,
+  "previousStatus": "new",
+  "newStatus": "in_review"
+}
+```
+
+### Configuration
+
+#### Environment Variables
+```bash
+# Feature flag for status change notifications (default: true)
+ENABLE_STATUS_NOTIFICATIONS=true
+
+# Admin email for notifications (configured in lib/notifications.ts)
+# Default: admin@lvj.com
+```
+
+#### Authorization
+- **Required Role**: `STAFF` or `ADMIN`
+- **Access Control**: Users can only update cases they manage (staff) or all cases (admin)
+
+### Testing
+
+#### Automated Tests
+```bash
+# Run status change notification tests
+npm run test -- --testPathPatterns=status-change-notifications
+
+# Run all tests
+npm run test:all
+```
+
+#### Manual Testing
+```bash
+# Test notification system
+node scripts/test-status-notifications.js
+
+# Test with feature flag disabled
+ENABLE_STATUS_NOTIFICATIONS=false node scripts/test-status-notifications.js
+```
+
+#### Development Mode Testing
+```bash
+# Enable development mode with mock notifications
+SKIP_DB=1 SKIP_AUTH=1 npm run dev
+
+# Update case status via API (requires authentication in non-dev mode)
+curl -X PATCH http://localhost:3000/api/cases/[case-id]/status \
+  -H "Content-Type: application/json" \
+  -d '{"status":"approved"}'
+```
+
+### Notification Content
+
+**Email Subject:**
+```
+Case Status Change: [Case Title] → [New Status]
+```
+
+**Email Content Includes:**
+- Case title and ID
+- Applicant name and email
+- Service type (if applicable)
+- Previous and new status
+- Changed by (user who made the change)
+- Timestamp of change
+- Direct link to case details
+
+### Audit Logging
+
+All status changes are logged with:
+- Case ID and user who made the change
+- Previous and new status values
+- Timestamp and feature flag status
+- Environment mode (development/production)
+
+**Log Format:**
+```
+📋 STATUS CHANGE AUDIT LOG
+==========================
+Case ID: case_123
+User: Admin User (user-id)
+Previous Status: new
+New Status: approved
+Timestamp: 2024-01-15T10:30:00.000Z
+Feature Flag: ENABLED
+Mode: PRODUCTION
+```
+
+### Staging Test Plan
+
+#### Pre-Production Checklist
+1. **Environment Setup**
+   - [ ] Set `ENABLE_STATUS_NOTIFICATIONS=true` in staging
+   - [ ] Configure admin email addresses
+   - [ ] Verify database connectivity
+
+2. **Functional Testing**
+   - [ ] Test all valid status transitions
+   - [ ] Verify notification content and formatting
+   - [ ] Test authorization controls (STAFF vs ADMIN access)
+   - [ ] Validate audit logging output
+
+3. **Integration Testing**
+   - [ ] Test with existing case management workflow
+   - [ ] Verify email delivery (check spam folders)
+   - [ ] Test feature flag toggle (enable/disable)
+
+4. **Error Handling**
+   - [ ] Test with invalid status values
+   - [ ] Test unauthorized access attempts
+   - [ ] Verify graceful degradation when email service fails
+
+5. **Performance Testing**
+   - [ ] Test notification sending under load
+   - [ ] Verify no impact on case update performance
+
+#### Production Deployment Steps
+1. Deploy with `ENABLE_STATUS_NOTIFICATIONS=false` initially
+2. Monitor application logs for any errors
+3. Enable feature flag: `ENABLE_STATUS_NOTIFICATIONS=true`
+4. Monitor notification delivery and audit logs
+5. Verify admin team receives notifications correctly
+
+### Troubleshooting
+
+#### Common Issues
+1. **Notifications not being sent**: Check `ENABLE_STATUS_NOTIFICATIONS` environment variable
+2. **Email not received**: Verify admin email configuration in `lib/notifications.ts`
+3. **Access denied errors**: Ensure user has `STAFF` or `ADMIN` role
+4. **Status update fails**: Check valid status values in API documentation
+
+#### Debug Commands
+```bash
+# Check current feature flag status
+echo $ENABLE_STATUS_NOTIFICATIONS
+
+# View audit logs (check application logs)
+grep "STATUS CHANGE AUDIT LOG" /var/log/application.log
+
+# Test notification function directly
+node -e "require('./lib/notifications').mockStatusChangeNotification({...})"
+```
+
+### Next Steps
+
+#### Immediate (Sprint 1)
+- [ ] Deploy to staging environment
+- [ ] Configure production email settings
+- [ ] Set up monitoring for notification delivery
+- [ ] Create admin dashboard for notification history
+
+#### Medium Term (Sprint 2-3)
+- [ ] Add notification preferences for different status types
+- [ ] Implement notification batching for high-volume periods
+- [ ] Add webhook support for external integrations
+- [ ] Create notification templates for different case types
+
+#### Long Term (Sprint 4+)
+- [ ] Add SMS notification option
+- [ ] Implement notification routing based on case assignment
+- [ ] Add machine learning for priority-based notifications
+- [ ] Create comprehensive notification analytics dashboard
