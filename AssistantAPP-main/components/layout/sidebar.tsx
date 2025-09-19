@@ -15,7 +15,8 @@ import {
   Users,
   TrendingUp,
   Settings,
-  HelpCircle
+  HelpCircle,
+  Tags
 } from "lucide-react";
 
 
@@ -68,6 +69,12 @@ export function Sidebar() {
       href: "/users", 
       label: "User Management", 
       icon: Users,
+      roles: ["LVJ_ADMIN"]
+    },
+    { 
+      href: "/admin/service-types", 
+      label: "Service Types", 
+      icon: Tags,
       roles: ["LVJ_ADMIN"]
     }
   ];

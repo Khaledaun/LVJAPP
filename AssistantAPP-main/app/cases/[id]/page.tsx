@@ -37,7 +37,7 @@ export default function CaseDetailPage() {
     <main>
       <TermsGate />
       <SimpleTopbar />
-      <ExternalPartnersManager caseId={params.id} />
+      <ExternalPartnersManager caseId={id} />
       <div className="p-6 space-y-4 max-w-5xl mx-auto">
         <Link href="/cases" className="text-sm underline underline-offset-4">&larr; Back to cases</Link>
 

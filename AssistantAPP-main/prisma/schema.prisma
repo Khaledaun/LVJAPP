@@ -19,6 +19,15 @@ model User {
   casesAsLawyer  Case[]   @relation("Lawyer")
 }
 
+model ServiceType {
+  id          String   @id @default(cuid())
+  title       String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  cases       Case[]
+}
+
 model Case {
   id                   String    @id @default(cuid())
   createdAt            DateTime  @default(now())
@@ -39,6 +48,8 @@ model Case {
   caseManager          User?     @relation("CaseManager", fields: [caseManagerId], references: [id])
   lawyerId             String?
   lawyer               User?     @relation("Lawyer", fields: [lawyerId], references: [id])
+  serviceTypeId        String?
+  serviceType          ServiceType? @relation(fields: [serviceTypeId], references: [id])
   documents            Document[]
   payments             Payment[]
   timelineEvents       TimelineEvent[]

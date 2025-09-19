@@ -2,7 +2,6 @@ import { getServerSession } from "next-auth/next";
 import { getAuthOptions } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
-import { Role } from "@prisma/client";
 
 export async function GET(
   req: Request,
@@ -34,11 +33,11 @@ export async function GET(
 
   // 3. Authorization Check: Verify the user has permission to view this specific case.
   let hasAccess = false;
-  if (role === Role.ADMIN) {
+  if (role === 'ADMIN') {
     hasAccess = true;
-  } else if (role === Role.STAFF) {
+  } else if (role === 'STAFF') {
     hasAccess = caseToView.caseManagerId === userId || caseToView.lawyerId === userId;
-  } else if (role === Role.CLIENT) {
+  } else if (role === 'CLIENT') {
     hasAccess = caseToView.clientId === userId;
   }
 

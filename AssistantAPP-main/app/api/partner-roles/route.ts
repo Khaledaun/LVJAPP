@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { getAuthOptions } from '@/lib/auth';
-import { prisma } from '@/lib/db';
-import { Role } from '@prisma/client';
+import { getPrisma } from '@/lib/db';
 
 export async function GET(req: Request) {
   const session = await getServerSession(getAuthOptions());
+  const prisma = await getPrisma();
 
   // Security: Only allow authenticated staff or admins to access this list
-  if (session?.user?.role !== Role.STAFF && session?.user?.role !== Role.ADMIN) {
+  if (session?.user?.role !== 'STAFF' && session?.user?.role !== 'ADMIN') {
     return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
   }
 
