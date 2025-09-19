@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { getAuthOptions } from '@/lib/auth';
-import { prisma } from '@/lib/db';
-import { Role } from '@prisma/client';
+import { getPrisma } from '@/lib/db';
 
 export async function POST(
   req: Request,
@@ -10,9 +9,10 @@ export async function POST(
 ) {
   const session = await getServerSession(getAuthOptions());
   const caseId = params.id;
+  const prisma = await getPrisma();
 
   // Security: Only staff and admins can add partners
-  if (session?.user?.role !== Role.STAFF && session?.user?.role !== Role.ADMIN) {
+  if (session?.user?.role !== 'STAFF' && session?.user?.role !== 'ADMIN') {
     return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
   }
 
@@ -61,6 +61,7 @@ export async function GET(
 ) {
   const session = await getServerSession(getAuthOptions());
   const caseId = params.id;
+  const prisma = await getPrisma();
 
   // Security: User must be involved in the case to see partners
   if (!session?.user?.id) {

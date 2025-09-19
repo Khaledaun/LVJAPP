@@ -1,13 +1,11 @@
 import { logAudit } from '@/lib/audit'
 
-import { Prisma } from "@prisma/client";
-import * as PrismaPkg from "@prisma/client";
 import { NextResponse } from 'next/server'
 import { getPrisma } from '@/lib/db'
 import { isDevNoDB, listPaymentsMock, markPaymentPaidMock, createPaymentMock } from '@/lib/dev'
 
-const PrismaRT = (PrismaPkg as any)?.Prisma ?? (Prisma as any);
-const PayStatus = PrismaRT?.PaymentStatus ?? ({ unpaid: 'unpaid', paid: 'paid', void: 'void' } as const);
+// Define payment status constants for development mode
+const PayStatus = { unpaid: 'unpaid', paid: 'paid', void: 'void' } as const;
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 export const revalidate = 0
@@ -45,7 +43,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (body.action === 'markPaid') {
     const p = await prisma.payment.update({
       where: { id: body.id },
-      data: { status: (Prisma as any)?.PaymentStatus?.paid ?? ((PayStatus as any).paid as any), paidAt: new Date() },
+      data: { status: PayStatus.paid, paidAt: new Date() },
     })
     await logAudit(prisma, { action: 'payment.markPaid', caseId: params.id, diff: { paymentId: p.id } });
     return NextResponse.json({ ok: true, item: p })
@@ -58,7 +56,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         description: String(body.description ?? 'Invoice'),
         amountCents: Number(body.amountCents ?? 0),
         currency: String(body.currency ?? 'USD'),
-        status: (Prisma as any)?.PaymentStatus?.UNpaid ?? ((PayStatus as any).unpaid as any),
+        status: PayStatus.unpaid,
         invoiceNumber: String(body.invoiceNumber ?? `INV-${Date.now()}`),
       },
     })
