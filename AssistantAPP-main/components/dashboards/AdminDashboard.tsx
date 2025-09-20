@@ -294,3 +294,5 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
     </PanelLayout>
   );
 };
+
+export default AdminDashboard;

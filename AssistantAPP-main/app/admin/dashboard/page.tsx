@@ -3,7 +3,7 @@
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { AdminDashboard } from "@/components/dashboards/AdminDashboard";
+import AdminDashboard from "@/components/dashboards/AdminDashboard";
 
 export default function AdminDashboardPage() {
   const { data: session, status } = useSession();

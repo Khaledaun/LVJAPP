@@ -137,14 +137,12 @@ export const PanelLayout: React.FC<PanelLayoutProps> = ({
             </div>
             
             <div className="flex items-center gap-6 text-sm">
-              <button className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors">
-                <Help className="w-4 h-4" />
+              <div className="flex items-center gap-2 text-gray-300">
                 <span>Support</span>
-              </button>
-              <button className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors">
-                <Settings className="w-4 h-4" />
+              </div>
+              <div className="flex items-center gap-2 text-gray-300">
                 <span>Settings</span>
-              </button>
+              </div>
               <div className="h-4 w-px bg-gray-600"></div>
               <div className="text-xs text-gray-400">
                 © 2024 LVJ Legal Services
