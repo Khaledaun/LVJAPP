@@ -37,87 +37,103 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
   };
 
   const renderOverview = () => (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-[#0C1F19] mb-2">Admin Dashboard</h1>
-        <p className="text-gray-600">System overview and management controls</p>
+    <div className="space-y-8">
+      <div className="space-y-3">
+        <h1 className="text-4xl font-bold text-[#0C1F19] tracking-tight">System Administration</h1>
+        <p className="text-xl text-gray-600 font-medium">Comprehensive system oversight and user management</p>
+        <div className="h-1 w-24 bg-gradient-to-r from-[#F9D366] to-yellow-400 rounded-full"></div>
       </div>
 
-      {/* Metrics Grid */}
+      {/* Enhanced Metrics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+        <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100 hover:shadow-2xl transition-all duration-300 group">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Users</p>
-              <p className="text-2xl font-bold text-[#0C1F19]">{totalUsers}</p>
+              <p className="text-sm font-semibold text-gray-600 mb-2">Total Users</p>
+              <p className="text-3xl font-bold text-[#0C1F19] mb-1">{totalUsers}</p>
+              <p className="text-sm text-gray-500">Active system users</p>
             </div>
-            <div className="p-3 bg-[#F9D366]/20 rounded-lg">
-              <Users className="w-6 h-6 text-[#0C1F19]" />
+            <div className="p-4 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg group-hover:scale-110 transition-transform">
+              <Users className="w-8 h-8 text-white" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+        <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100 hover:shadow-2xl transition-all duration-300 group">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Cases</p>
-              <p className="text-2xl font-bold text-[#0C1F19]">{totalCases}</p>
+              <p className="text-sm font-semibold text-gray-600 mb-2">Total Cases</p>
+              <p className="text-3xl font-bold text-[#0C1F19] mb-1">{totalCases}</p>
+              <p className="text-sm text-gray-500">Cases in system</p>
             </div>
-            <div className="p-3 bg-[#F9D366]/20 rounded-lg">
-              <FileText className="w-6 h-6 text-[#0C1F19]" />
+            <div className="p-4 bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg group-hover:scale-110 transition-transform">
+              <FileText className="w-8 h-8 text-white" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+        <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100 hover:shadow-2xl transition-all duration-300 group">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Active Cases</p>
-              <p className="text-2xl font-bold text-blue-600">{activeCases}</p>
+              <p className="text-sm font-semibold text-gray-600 mb-2">Active Cases</p>
+              <p className="text-3xl font-bold text-blue-600 mb-1">{activeCases}</p>
+              <p className="text-sm text-gray-500">Currently processing</p>
             </div>
-            <div className="p-3 bg-blue-100 rounded-lg">
-              <Activity className="w-6 h-6 text-blue-600" />
+            <div className="p-4 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg group-hover:scale-110 transition-transform">
+              <Activity className="w-8 h-8 text-white" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+        <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100 hover:shadow-2xl transition-all duration-300 group">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Pending Review</p>
-              <p className="text-2xl font-bold text-orange-600">{pendingCases}</p>
+              <p className="text-sm font-semibold text-gray-600 mb-2">Pending Review</p>
+              <p className="text-3xl font-bold text-orange-600 mb-1">{pendingCases}</p>
+              <p className="text-sm text-gray-500">Requiring attention</p>
             </div>
-            <div className="p-3 bg-orange-100 rounded-lg">
-              <AlertTriangle className="w-6 h-6 text-orange-600" />
+            <div className="p-4 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl shadow-lg group-hover:scale-110 transition-transform">
+              <AlertTriangle className="w-8 h-8 text-white" />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Recent Activity */}
-      <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
-        <h3 className="text-xl font-bold text-[#0C1F19] mb-4">Recent System Activity</h3>
-        <div className="space-y-3">
-          <div className="flex items-center justify-between py-2 border-b border-gray-100">
-            <div>
-              <p className="font-medium text-gray-900">New user registration</p>
-              <p className="text-sm text-gray-600">John Doe registered as client</p>
-            </div>
-            <span className="text-xs text-gray-500">2 hours ago</span>
+      {/* Enhanced Activity Section */}
+      <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-3 bg-[#F9D366] rounded-xl">
+            <Activity className="w-6 h-6 text-[#0C1F19]" />
           </div>
-          <div className="flex items-center justify-between py-2 border-b border-gray-100">
-            <div>
-              <p className="font-medium text-gray-900">Case status updated</p>
-              <p className="text-sm text-gray-600">Case #12345 moved to review</p>
-            </div>
-            <span className="text-xs text-gray-500">4 hours ago</span>
+          <div>
+            <h3 className="text-2xl font-bold text-[#0C1F19]">Recent System Activity</h3>
+            <p className="text-gray-600">Latest system events and notifications</p>
           </div>
-          <div className="flex items-center justify-between py-2">
-            <div>
-              <p className="font-medium text-gray-900">System backup completed</p>
-              <p className="text-sm text-gray-600">Daily backup successful</p>
+        </div>
+        <div className="space-y-4">
+          <div className="flex items-start gap-4 p-4 bg-blue-50 rounded-xl border-l-4 border-blue-500">
+            <div className="w-3 h-3 bg-blue-500 rounded-full mt-2"></div>
+            <div className="flex-1">
+              <p className="font-semibold text-gray-900">New user registration</p>
+              <p className="text-sm text-gray-600 mt-1">John Doe registered as client with verification pending</p>
+              <span className="text-xs text-gray-500 mt-2 block">2 hours ago</span>
             </div>
-            <span className="text-xs text-gray-500">1 day ago</span>
+          </div>
+          <div className="flex items-start gap-4 p-4 bg-green-50 rounded-xl border-l-4 border-green-500">
+            <div className="w-3 h-3 bg-green-500 rounded-full mt-2"></div>
+            <div className="flex-1">
+              <p className="font-semibold text-gray-900">Case status updated</p>
+              <p className="text-sm text-gray-600 mt-1">Case #12345 successfully moved to review stage</p>
+              <span className="text-xs text-gray-500 mt-2 block">4 hours ago</span>
+            </div>
+          </div>
+          <div className="flex items-start gap-4 p-4 bg-purple-50 rounded-xl border-l-4 border-purple-500">
+            <div className="w-3 h-3 bg-purple-500 rounded-full mt-2"></div>
+            <div className="flex-1">
+              <p className="font-semibold text-gray-900">System backup completed</p>
+              <p className="text-sm text-gray-600 mt-1">Daily automated backup completed successfully</p>
+              <span className="text-xs text-gray-500 mt-2 block">1 day ago</span>
+            </div>
           </div>
         </div>
       </div>

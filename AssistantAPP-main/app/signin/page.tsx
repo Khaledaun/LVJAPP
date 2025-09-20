@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { signIn } from 'next-auth/react'
+import { Mail, Lock, Shield, Zap, ArrowRight, ChevronRight } from 'lucide-react'
 
 export default function SignInPage() {
   const [email, setEmail] = useState('you@example.com')
@@ -28,86 +29,160 @@ export default function SignInPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Brand Header */}
-      <header className="w-full bg-primary border-b border-border">
-        <div className="container mx-auto max-w-7xl px-4">
-          <div className="flex h-16 items-center">
-            <div className="flex items-center space-x-3">
-              <div className="h-8 w-8 rounded bg-accent flex items-center justify-center shadow-sm">
-                <span className="text-accent-foreground font-bold text-sm">LVJ</span>
-              </div>
-              <span className="font-bold text-xl text-primary-foreground">Case Assistant</span>
+    <div className="min-h-screen bg-gradient-to-br from-[#F6F6F6] via-gray-50 to-white flex items-center justify-center p-6">
+      <div className="w-full max-w-md">
+        {/* Brand Header */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center gap-4 mb-6">
+            <div className="h-14 w-14 rounded-2xl bg-[#0C1F19] flex items-center justify-center shadow-xl">
+              <span className="text-[#F9D366] font-bold text-2xl">LVJ</span>
+            </div>
+            <div className="text-left">
+              <div className="text-3xl font-bold text-[#0C1F19] tracking-tight">Case Assistant</div>
+              <div className="text-sm text-gray-600 font-medium">Professional Legal Management</div>
             </div>
           </div>
+          <div className="bg-gradient-to-r from-[#F9D366] to-yellow-400 h-1 w-20 mx-auto rounded-full"></div>
         </div>
-      </header>
 
-      {/* Sign-in Form */}
-      <main className="flex items-center justify-center p-6 min-h-[calc(100vh-4rem)]">
-        <div className="w-full max-w-sm bg-card border border-border rounded-xl p-6 space-y-5 shadow-lg">
-          <div className="text-center space-y-2">
-            <h1 className="text-2xl font-bold text-foreground">Welcome Back</h1>
-            <p className="text-sm text-muted-foreground">Sign in to your account</p>
+        {/* Sign-in Card */}
+        <div className="bg-white rounded-3xl shadow-2xl p-8 border border-gray-100 backdrop-blur-sm">
+          <div className="text-center space-y-3 mb-8">
+            <h1 className="text-4xl font-bold text-[#0C1F19] tracking-tight">Welcome Back</h1>
+            <p className="text-lg text-gray-600 font-medium">Sign in to access your legal dashboard</p>
           </div>
 
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <label className="text-sm font-semibold text-foreground">Email</label>
-              <input 
-                className="w-full border border-border bg-input rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-colors" 
-                type="email" 
-                value={email} 
-                onChange={e=>setEmail(e.target.value)} 
-                placeholder="Enter your email"
-              />
+          <form onSubmit={signInDev} className="space-y-6">
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-[#0C1F19] block mb-2">Email Address</label>
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <Mail className="h-5 w-5 text-gray-400 group-focus-within:text-[#F9D366] transition-colors" />
+                </div>
+                <input 
+                  className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 bg-gray-50/50 rounded-xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-[#F9D366]/20 focus:border-[#F9D366] focus:bg-white transition-all duration-300 placeholder-gray-400" 
+                  type="email" 
+                  value={email} 
+                  onChange={e=>setEmail(e.target.value)} 
+                  placeholder="Enter your email address"
+                  required
+                />
+              </div>
             </div>
 
-            <form onSubmit={signInDev} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-sm font-semibold text-foreground">Access code</label>
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-[#0C1F19] block mb-2">Access Code</label>
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <Lock className="h-5 w-5 text-gray-400 group-focus-within:text-[#F9D366] transition-colors" />
+                </div>
                 <input 
-                  className="w-full border border-border bg-input rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-colors" 
+                  className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 bg-gray-50/50 rounded-xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-[#F9D366]/20 focus:border-[#F9D366] focus:bg-white transition-all duration-300 placeholder-gray-400" 
                   type="password" 
                   name="password" 
                   value={code} 
                   onChange={e=>setCode(e.target.value)} 
-                  placeholder="Enter access code"
+                  placeholder="Enter your access code"
+                  required
                 />
-                <p className="text-xs text-muted-foreground">Use DEV_LOGIN_CODE from .env (default: <code className="bg-secondary px-1 py-0.5 rounded text-xs">lvjdev</code>).</p>
               </div>
-              <button 
-                type="submit" 
-                disabled={loading} 
-                className="w-full px-4 py-2.5 bg-accent hover:bg-accent/90 text-accent-foreground font-semibold rounded-lg disabled:opacity-60 disabled:cursor-not-allowed transition-colors shadow-sm"
-              >
-                {loading ? 'Signing in…' : 'Sign in'}
-              </button>
-            </form>
-
-            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-              <span className="flex-1 h-px bg-border"></span>
-              <span className="bg-background px-2 font-medium">or</span>
-              <span className="flex-1 h-px bg-border"></span>
+              <div className="flex items-center gap-2 mt-2">
+                <div className="flex items-center gap-1 text-xs text-gray-500">
+                  <span className="text-xs">💡</span>
+                  <span>Development code:</span>
+                  <code className="bg-gray-100 px-2 py-1 rounded font-mono text-[#0C1F19] font-semibold">lvjdev</code>
+                </div>
+              </div>
             </div>
 
             <button 
-              onClick={sendMagicLink} 
+              type="submit" 
               disabled={loading} 
-              className="w-full px-4 py-2.5 border border-border bg-background hover:bg-secondary text-foreground font-semibold rounded-lg disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+              className="w-full py-4 bg-gradient-to-r from-[#F9D366] to-yellow-400 hover:from-yellow-400 hover:to-[#F9D366] text-[#0C1F19] font-bold rounded-xl shadow-lg hover:shadow-xl disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-300 transform hover:-translate-y-1 active:translate-y-0"
             >
-              Email me a magic link
+              <div className="flex items-center justify-center gap-3">
+                <Shield className="w-5 h-5" />
+                <span className="text-lg">{loading ? 'Signing you in...' : 'Sign In Securely'}</span>
+                <ArrowRight className="w-5 h-5" />
+              </div>
             </button>
+          </form>
+
+          <div className="flex items-center gap-4 my-6 text-sm text-gray-500">
+            <div className="flex-1 h-px bg-gradient-to-r from-transparent to-gray-200"></div>
+            <span className="font-semibold text-gray-400 bg-white px-3">or</span>
+            <div className="flex-1 h-px bg-gradient-to-l from-transparent to-gray-200"></div>
           </div>
 
-          {msg && <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg p-3">{msg}</div>}
-          {err && <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">{err}</div>}
+          <button 
+            onClick={sendMagicLink} 
+            disabled={loading} 
+            className="w-full py-4 border-2 border-gray-200 hover:border-[#0C1F19] text-[#0C1F19] font-bold rounded-xl disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-300 hover:bg-gray-50 group"
+          >
+            <div className="flex items-center justify-center gap-3">
+              <Zap className="w-5 h-5 group-hover:text-[#F9D366] transition-colors" />
+              <span>Email me a magic link</span>
+              <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </button>
 
-          <p className="text-xs text-muted-foreground text-center leading-relaxed">
-            Email login only activates if <code className="bg-secondary px-1 py-0.5 rounded text-xs">EMAIL_FROM</code> is set. Without SendGrid, the link prints in server logs.
-          </p>
+          {/* Status Messages */}
+          {msg && (
+            <div className="mt-6 p-4 bg-green-50 border-l-4 border-green-400 rounded-lg">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <div className="w-5 h-5 bg-green-400 rounded-full flex items-center justify-center">
+                    <div className="w-2 h-2 bg-white rounded-full"></div>
+                  </div>
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-green-800">{msg}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {err && (
+            <div className="mt-6 p-4 bg-red-50 border-l-4 border-red-400 rounded-lg">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <div className="w-5 h-5 bg-red-400 rounded-full flex items-center justify-center">
+                    <div className="w-2 h-2 bg-white rounded-full"></div>
+                  </div>
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-red-800">{err}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-8 text-center">
+            <p className="text-xs text-gray-500 leading-relaxed">
+              Email authentication requires proper <span className="font-mono bg-gray-100 px-1 py-0.5 rounded text-[#0C1F19]">EMAIL_FROM</span> configuration.<br />
+              Without SendGrid setup, magic links appear in server logs.
+            </p>
+          </div>
         </div>
-      </main>
+
+        {/* Footer */}
+        <div className="text-center mt-8">
+          <div className="flex items-center justify-center gap-6 text-xs text-gray-500">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded bg-[#0C1F19]"></div>
+              <span>Forest Green</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded bg-[#F9D366]"></div>
+              <span>Warm Yellow</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Shield className="w-3 h-3" />
+              <span>Secure</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
