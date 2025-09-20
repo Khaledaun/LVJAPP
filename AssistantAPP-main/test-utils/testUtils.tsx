@@ -5,6 +5,7 @@ import { SessionProvider } from 'next-auth/react'
 // Mock session for testing
 const mockSession = {
   user: {
+    id: 'test-user-id',
     email: 'test@example.com',
     role: 'admin',
     name: 'Test User'
