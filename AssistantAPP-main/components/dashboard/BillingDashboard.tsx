@@ -37,6 +37,10 @@ const RechartsLineChart = LineChart as any;
 const RechartsXAxis = XAxis as any;
 const RechartsYAxis = YAxis as any;
 const RechartsCell = Cell as any;
+const RechartsBar = Bar as any;
+const RechartsLine = Line as any;
+const RechartsArea = Area as any;
+const RechartsPie = Pie as any;
 
 import { 
   TrendingUp, TrendingDown, Minus, 
@@ -294,14 +298,14 @@ export default function BillingDashboard({ className }: BillingDashboardProps) {
                     <RechartsXAxis dataKey="name" />
                     <RechartsYAxis />
                     <Tooltip />
-                    <Area
+                    <RechartsArea
                       type="monotone"
                       dataKey="revenue"
                       stackId="1"
                       stroke="#8884d8"
                       fill="#8884d8"
                     />
-                    <Area
+                    <RechartsArea
                       type="monotone"
                       dataKey="expenses"
                       stackId="2"
@@ -319,19 +323,19 @@ export default function BillingDashboard({ className }: BillingDashboardProps) {
               <CardContent>
                 <RechartsResponsiveContainer width="100%" height={350}>
                   <RechartsPieChart>
-                    <Pie
+                    <RechartsPie
                       data={getInvoiceStatusData()}
                       cx="50%"
                       cy="50%"
                       outerRadius={80}
                       fill="#8884d8"
                       dataKey="value"
-                      label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
+                      label={({ name, percent }: any) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
                     >
                       {(getInvoiceStatusData().map((entry, index) => (
                         <RechartsCell key={`cell-${index}`} fill={entry.color} />
                       )) as any)}
-                    </Pie>
+                    </RechartsPie>
                     <Tooltip />
                   </RechartsPieChart>
                 </RechartsResponsiveContainer>
@@ -355,9 +359,9 @@ export default function BillingDashboard({ className }: BillingDashboardProps) {
                   <RechartsXAxis dataKey="name" />
                   <RechartsYAxis />
                   <Tooltip />
-                  <Bar dataKey="revenue" fill="#8884d8" />
-                  <Bar dataKey="expenses" fill="#82ca9d" />
-                  <Bar dataKey="profit" fill="#ffc658" />
+                  <RechartsBar dataKey="revenue" fill="#8884d8" />
+                  <RechartsBar dataKey="expenses" fill="#82ca9d" />
+                  <RechartsBar dataKey="profit" fill="#ffc658" />
                 </RechartsBarChart>
               </RechartsResponsiveContainer>
             </CardContent>
@@ -379,7 +383,7 @@ export default function BillingDashboard({ className }: BillingDashboardProps) {
                   <RechartsXAxis dataKey="name" />
                   <RechartsYAxis />
                   <Tooltip />
-                  <Line
+                  <RechartsLine
                     type="monotone"
                     dataKey="revenue"
                     stroke="#8884d8"
@@ -406,7 +410,7 @@ export default function BillingDashboard({ className }: BillingDashboardProps) {
                   <RechartsXAxis dataKey="name" />
                   <RechartsYAxis />
                   <Tooltip />
-                  <Area
+                  <RechartsArea
                     type="monotone"
                     dataKey="profit"
                     stroke="#8884d8"

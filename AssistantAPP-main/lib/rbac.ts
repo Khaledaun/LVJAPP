@@ -34,11 +34,22 @@ export function getRoleDisplayName(role: string): string {
   const normalizedRole = role.toUpperCase();
   switch (normalizedRole) {
     case 'ADMIN':
+    case 'LVJ_ADMIN':
       return 'Administrator';
     case 'STAFF':
+    case 'LVJ_TEAM':
       return 'Staff Member';
     case 'CLIENT':
+    case 'CUSTOMER':
       return 'Client';
+    case 'LAWYER_ADMIN':
+      return 'Lawyer Admin';
+    case 'LAWYER_ASSOCIATE':
+      return 'Lawyer Associate';
+    case 'LAWYER_ASSISTANT':
+      return 'Lawyer Assistant';
+    case 'LVJ_MARKETING':
+      return 'Marketing';
     default:
       return 'User';
   }
@@ -56,10 +67,10 @@ export function canAccessRoute(userRole: UserRole, pathname: string): boolean {
     return true;
   }
 
-  // Basic route access logic - can be expanded
-  const adminOnlyRoutes = ['/admin', '/settings/system'];
-  const lawyerRoutes = ['/cases', '/clients', '/documents'];
-  const clientRoutes = ['/my-case', '/documents/view'];
+  // Role-specific route access
+  const adminOnlyRoutes = ['/admin'];
+  const lawyerRoutes = ['/lawyer', '/cases', '/clients', '/documents'];
+  const clientRoutes = ['/customer', '/my-case', '/documents/view'];
 
   // Check admin-only routes
   if (adminOnlyRoutes.some(route => pathname.startsWith(route))) {
@@ -68,7 +79,7 @@ export function canAccessRoute(userRole: UserRole, pathname: string): boolean {
 
   // Check lawyer routes
   if (lawyerRoutes.some(route => pathname.startsWith(route))) {
-    return userRole.startsWith('lawyer_') || userRole.startsWith('lvj_');
+    return (userRole as string).startsWith('lawyer_') || (userRole as string).startsWith('lvj_');
   }
 
   // Check client routes

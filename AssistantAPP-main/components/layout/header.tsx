@@ -93,15 +93,15 @@ const initials = displayName
   const visibleItems = navigationItems.filter(item => item.roles.includes(userRole));
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-50 w-full border-b border-border bg-primary shadow-sm">
       <div className="container mx-auto max-w-7xl px-4">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
-          <Link href="/dashboard" className="flex items-center space-x-2">
-            <div className="h-8 w-8 rounded bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center">
-              <span className="text-white font-bold text-sm">LVJ</span>
+          <Link href="/dashboard" className="flex items-center space-x-3">
+            <div className="h-8 w-8 rounded bg-accent flex items-center justify-center shadow-sm">
+              <span className="text-accent-foreground font-bold text-sm">LVJ</span>
             </div>
-            <span className="font-bold text-xl text-gray-900">Case Assistant</span>
+            <span className="font-bold text-xl text-primary-foreground">Case Assistant</span>
           </Link>
 
           {/* Navigation */}
@@ -112,10 +112,10 @@ const initials = displayName
                 <Link
                   key={item.href}
                   href={item.href as Route}
-                  className="flex items-center space-x-2 text-gray-600 hover:text-blue-600 transition-colors"
+                  className="flex items-center space-x-2 text-primary-foreground/80 hover:text-accent transition-colors font-medium"
                 >
                   <Icon className="h-4 w-4" />
-                  <span className="font-medium">{item.label}</span>
+                  <span>{item.label}</span>
                 </Link>
               );
             })}
@@ -124,19 +124,28 @@ const initials = displayName
           {/* User Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-                <Avatar className="h-10 w-10">
-                  <AvatarFallback className="bg-blue-600 text-white">
+              <Button variant="ghost" className="relative h-10 px-3 rounded-lg bg-accent/10 hover:bg-accent/20 text-primary-foreground border border-accent/30">
+                <Avatar className="h-7 w-7 mr-2">
+                  <AvatarFallback className="bg-accent text-accent-foreground text-xs font-bold">
                     {initials || 'U'}
                   </AvatarFallback>
                 </Avatar>
+                <div className="flex flex-col items-start leading-none">
+                  <span className="text-xs font-semibold text-accent">{getRoleDisplayName(userRole)}</span>
+                  <span className="text-xs text-primary-foreground/80">{displayName}</span>
+                </div>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56" align="end">
-              <div className="flex items-center justify-start gap-2 p-2">
+            <DropdownMenuContent className="w-56 bg-card border-border" align="end">
+              <div className="flex items-center justify-start gap-2 p-3 bg-secondary rounded-t-lg">
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback className="bg-accent text-accent-foreground text-xs font-bold">
+                    {initials || 'U'}
+                  </AvatarFallback>
+                </Avatar>
                 <div className="flex flex-col space-y-1 leading-none">
-                  <p className="font-medium">{(user as any)?.firstName} {(user as any)?.lastName}</p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="font-semibold text-sm text-foreground">{(user as any)?.firstName} {(user as any)?.lastName}</p>
+                  <p className="text-xs font-medium text-accent">
                     {getRoleDisplayName(userRole)}
                   </p>
                   <p className="text-xs text-muted-foreground">{user.email}</p>
@@ -144,19 +153,19 @@ const initials = displayName
               </div>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
-                <Link href={"/profile" as Route} className="flex items-center">
+                <Link href={"/profile" as Route} className="flex items-center font-medium">
                   <User className="mr-2 h-4 w-4" />
                   <span>Profile</span>
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href="/settings" className="flex items-center">
+                <Link href="/settings" className="flex items-center font-medium">
                   <Settings className="mr-2 h-4 w-4" />
                   <span>Settings</span>
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleSignOut}>
+              <DropdownMenuItem onClick={handleSignOut} className="font-medium text-destructive focus:text-destructive">
                 <LogOut className="mr-2 h-4 w-4" />
                 <span>Sign out</span>
               </DropdownMenuItem>
