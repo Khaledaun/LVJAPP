@@ -1,4 +1,4 @@
-import { Role } from "@prisma/client";
+// import { Role } from "@prisma/client"; // Commented out due to Prisma client generation issue
 import type { NextAuthOptions } from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import { prisma } from "@/lib/db";
@@ -62,7 +62,7 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (token && session.user) {
         session.user.id = token.id as string;
-        session.user.role = token.role as Role;
+        session.user.role = token.role as string;
       }
       return session;
     },

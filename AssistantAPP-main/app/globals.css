@@ -1,76 +1,87 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
  
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Brand Colors */
+    --brand-forest-green: 155 60% 8%;        /* #0C1F19 */
+    --brand-warm-yellow: 46 92% 70%;         /* #F9D366 */
+    --brand-light-gray: 0 0% 96.5%;          /* #F6F6F6 */
+    
+    /* Theme Variables */
+    --background: 0 0% 100%;                  /* #FFFFFF */
+    --foreground: 155 60% 8%;                 /* Forest green for text */
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;                        /* White cards */
+    --card-foreground: 155 60% 8%;
  
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 155 60% 8%;
  
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 155 60% 8%;                    /* Forest green primary */
+    --primary-foreground: 0 0% 100%;          /* White text on forest green */
  
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 0 0% 96.5%;                  /* Light gray sections */
+    --secondary-foreground: 155 60% 8%;
  
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 0 0% 96.5%;                      /* Light gray muted areas */
+    --muted-foreground: 155 30% 35%;          /* Lighter forest green for muted text */
  
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 46 92% 70%;                     /* Warm yellow for highlights */
+    --accent-foreground: 155 60% 8%;          /* Forest green text on yellow */
  
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 0 0% 90%;                       /* Light gray borders */
+    --input: 0 0% 96.5%;                      /* Light gray input backgrounds */
+    --ring: 46 92% 70%;                       /* Yellow focus rings */
  
     --radius: 0.5rem;
   }
  
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    /* Keep forest green theme for dark mode but with inverted contrast */
+    --background: 155 60% 8%;                 /* Forest green background */
+    --foreground: 0 0% 100%;                  /* White text */
  
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 155 40% 12%;                      /* Slightly lighter forest green */
+    --card-foreground: 0 0% 100%;
  
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 155 40% 12%;
+    --popover-foreground: 0 0% 100%;
  
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 46 92% 70%;                    /* Yellow primary in dark mode */
+    --primary-foreground: 155 60% 8%;         /* Forest green text on yellow */
  
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 155 40% 15%;
+    --secondary-foreground: 0 0% 100%;
  
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 155 40% 15%;
+    --muted-foreground: 0 0% 70%;
  
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 46 92% 70%;                     /* Yellow accent */
+    --accent-foreground: 155 60% 8%;
  
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 100%;
  
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --border: 155 40% 20%;
+    --input: 155 40% 15%;
+    --ring: 46 92% 70%;
   }
 }
  
 @layer base {
   * {
-    @applyborder-color: hsl(var(--border));
+    border-color: hsl(var(--border));
   }
   body {
-    @applybackground-color: hsl(var(--background)); color: hsl(var(--foreground));
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: 'Montserrat', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
   }
 }

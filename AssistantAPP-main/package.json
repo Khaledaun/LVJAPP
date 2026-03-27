@@ -112,6 +112,6 @@
     "node": ">=18.18 <23"
   },
   "prisma": {
-    "seed": "tsx --require dotenv/config scripts/seed.ts"
+    "seed": "tsx --require dotenv/config prisma/seed.ts"
   }
 }

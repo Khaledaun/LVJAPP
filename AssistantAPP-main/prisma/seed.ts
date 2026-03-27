@@ -1,4 +1,5 @@
-import { PrismaClient, Role, CaseStatus, DocState, PaymentStatus } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
+// Temporarily removed enum imports due to Prisma client generation issue
 
 const prisma = new PrismaClient();
 
@@ -11,7 +12,7 @@ async function main() {
     create: {
       email: 'ali@example.com',
       name: 'Ali Ahmad',
-      role: Role.CLIENT,
+      role: 'CLIENT',
     },
   });
   console.log(`Created user: ${user.name}`);
@@ -24,7 +25,7 @@ async function main() {
       currency: 'USD',
       applicantName: 'Ali Ahmad',
       applicantEmail: 'ali@example.com',
-      overallStatus: CaseStatus.documents_pending,
+      overallStatus: 'documents_pending',
       stage: 'Intake',
       urgencyLevel: 'MEDIUM',
       completionPercentage: 10,
@@ -32,13 +33,13 @@ async function main() {
       caseManagerId: user.id,
       documents: {
         create: [
-          { name: 'Passport Scan', state: DocState.uploaded },
-          { name: 'Visa Application', state: DocState.requested },
+          { name: 'Passport Scan', state: 'uploaded' },
+          { name: 'Visa Application', state: 'requested' },
         ],
       },
       payments: {
         create: [
-          { description: 'Service Fee – Filing', amount: 75000, currency: 'USD', status: PaymentStatus.unpaid, invoiceNumber: 'INV-1001' }
+          { description: 'Service Fee – Filing', amount: 75000, currency: 'USD', status: 'unpaid', invoiceNumber: 'INV-1001' }
         ],
       },
     },

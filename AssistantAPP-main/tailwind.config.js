@@ -20,7 +20,15 @@ module.exports = {
         muted: { DEFAULT: "hsl(var(--muted))", foreground: "hsl(var(--muted-foreground))" },
         accent: { DEFAULT: "hsl(var(--accent))", foreground: "hsl(var(--accent-foreground))" },
         popover: { DEFAULT: "hsl(var(--popover))", foreground: "hsl(var(--popover-foreground))" },
-        card: { DEFAULT: "hsl(var(--card))", foreground: "hsl(var(--card-foreground))" }
+        card: { DEFAULT: "hsl(var(--card))", foreground: "hsl(var(--card-foreground))" },
+        // Brand-specific colors for direct use
+        'brand-forest': 'hsl(var(--brand-forest-green))',
+        'brand-yellow': 'hsl(var(--brand-warm-yellow))',
+        'brand-gray': 'hsl(var(--brand-light-gray))',
+      },
+      fontFamily: {
+        'montserrat': ['Montserrat', 'sans-serif'],
+        'sans': ['Montserrat', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'Noto Sans', 'sans-serif'],
       },
       borderRadius: {
         lg: "var(--radius)",

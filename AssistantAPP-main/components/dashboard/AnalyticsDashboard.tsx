@@ -37,6 +37,10 @@ const RechartsLineChart = LineChart as any;
 const RechartsXAxis = XAxis as any;
 const RechartsYAxis = YAxis as any;
 const RechartsCell = Cell as any;
+const RechartsBar = Bar as any;
+const RechartsLine = Line as any;
+const RechartsArea = Area as any;
+const RechartsPie = Pie as any;
 import { 
   TrendingUp, TrendingDown, Minus, 
   Users, FileText, DollarSign, Clock, 
@@ -301,7 +305,7 @@ export default function AnalyticsDashboard({ className }: AnalyticsDashboardProp
               <CardContent>
                 <RechartsResponsiveContainer width="100%" height={350}>
                   <RechartsPieChart>
-                    <Pie
+                    <RechartsPie
                       data={[
                         { name: 'Active', value: 45 },
                         { name: 'Pending', value: 25 },
@@ -323,7 +327,7 @@ export default function AnalyticsDashboard({ className }: AnalyticsDashboardProp
                       ].map((entry, index) => (
                         <RechartsCell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       )) as any)}
-                    </Pie>
+                    </RechartsPie>
                     <Tooltip />
                   </RechartsPieChart>
                 </RechartsResponsiveContainer>
@@ -347,8 +351,8 @@ export default function AnalyticsDashboard({ className }: AnalyticsDashboardProp
                   <RechartsXAxis dataKey="name" />
                   <RechartsYAxis />
                   <Tooltip />
-                  <Bar dataKey="revenue" fill="#8884d8" />
-                  <Bar dataKey="target" fill="#82ca9d" />
+                  <RechartsBar dataKey="revenue" fill="#8884d8" />
+                  <RechartsBar dataKey="target" fill="#82ca9d" />
                 </RechartsBarChart>
               </RechartsResponsiveContainer>
             </CardContent>
@@ -370,13 +374,13 @@ export default function AnalyticsDashboard({ className }: AnalyticsDashboardProp
                   <RechartsXAxis dataKey="name" />
                   <RechartsYAxis />
                   <Tooltip />
-                  <Line
+                  <RechartsLine
                     type="monotone"
                     dataKey="billableHours"
                     stroke="#8884d8"
                     strokeWidth={2}
                   />
-                  <Line
+                  <RechartsLine
                     type="monotone"
                     dataKey="totalHours"
                     stroke="#82ca9d"
@@ -403,7 +407,7 @@ export default function AnalyticsDashboard({ className }: AnalyticsDashboardProp
                   <RechartsXAxis dataKey="name" />
                   <RechartsYAxis />
                   <Tooltip />
-                  <Area
+                  <RechartsArea
                     type="monotone"
                     dataKey="value"
                     stroke="#8884d8"

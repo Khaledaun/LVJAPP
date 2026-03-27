@@ -82,7 +82,7 @@ export function Sidebar() {
   const visibleItems = navigationItems.filter(item => item.roles.includes(userRole));
 
   return (
-    <div className="pb-12 w-64">
+    <div className="pb-12 w-64 bg-secondary border-r border-border">
       <div className="space-y-4 py-4">
         <div className="px-3 py-2">
           <div className="space-y-1">
@@ -95,13 +95,13 @@ export function Sidebar() {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "flex items-center rounded-lg px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors",
+                    "flex items-center rounded-lg px-3 py-2.5 text-sm font-semibold transition-all duration-200",
                     isActive 
-                      ? "bg-accent text-accent-foreground" 
-                      : "text-muted-foreground"
+                      ? "bg-accent text-accent-foreground shadow-sm border border-accent/20" 
+                      : "text-muted-foreground hover:bg-accent/10 hover:text-foreground"
                   )}
                 >
-                  <Icon className="mr-2 h-4 w-4" />
+                  <Icon className={cn("mr-3 h-4 w-4", isActive ? "text-accent-foreground" : "")} />
                   {item.label}
                 </Link>
               );
@@ -110,22 +110,22 @@ export function Sidebar() {
         </div>
         
         <div className="px-3 py-2">
-          <h2 className="mb-2 px-3 text-lg font-semibold tracking-tight">
+          <h2 className="mb-3 px-3 text-sm font-bold tracking-wide text-foreground uppercase">
             Support
           </h2>
           <div className="space-y-1">
             <Link
               href="/help"
-              className="flex items-center rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+              className="flex items-center rounded-lg px-3 py-2.5 text-sm font-semibold text-muted-foreground hover:bg-accent/10 hover:text-foreground transition-all duration-200"
             >
-              <HelpCircle className="mr-2 h-4 w-4" />
+              <HelpCircle className="mr-3 h-4 w-4" />
               Help Center
             </Link>
             <Link
               href="/settings"
-              className="flex items-center rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+              className="flex items-center rounded-lg px-3 py-2.5 text-sm font-semibold text-muted-foreground hover:bg-accent/10 hover:text-foreground transition-all duration-200"
             >
-              <Settings className="mr-2 h-4 w-4" />
+              <Settings className="mr-3 h-4 w-4" />
               Settings
             </Link>
           </div>
