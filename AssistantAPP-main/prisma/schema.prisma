@@ -191,6 +191,147 @@ model AuditLog {
   diff      Json?
 }
 
+// ─────────────────────────────────────────────────────────────
+// Agent Operating System (docs/AGENT_OS.md §4, §9, §10) — Phase 1
+// All additive per Golden Rule #4.
+// ─────────────────────────────────────────────────────────────
+
+// Every agent invocation writes one row here.
+model AutomationLog {
+  id                 String   @id @default(cuid())
+  createdAt          DateTime @default(now())
+  agentId            String
+  agentVersion       String
+  correlationId      String
+  triggerEvent       String
+  caseId             String?
+  leadId             String?
+  startedAt          DateTime
+  durationMs         Int
+  status             AutomationStatus @default(OK)
+  costUsd            Float    @default(0)
+  tokensIn           Int      @default(0)
+  tokensOut          Int      @default(0)
+  llmCalls           Int      @default(0)
+  promptVersion      String?
+  modelPrimary       String?
+  modelFallbackUsed  Boolean  @default(false)
+  escalationEvent    String?
+  errorClass         String?
+  errorMessage       String?
+
+  @@index([agentId, createdAt])
+  @@index([correlationId])
+  @@index([caseId])
+}
+
+enum AutomationStatus {
+  OK
+  ESCALATED
+  HUMAN_BLOCKED
+  CIRCUIT_BROKEN
+  ERROR
+}
+
+// Drafts produced by any workflow agent before HITL / send.
+model AgentDraft {
+  id            String    @id @default(cuid())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  agentId       String
+  agentVersion  String
+  correlationId String
+  caseId        String?
+  leadId        String?
+  templateId    String
+  channel       String    // email | whatsapp | portal | letter | internal
+  subject       String?
+  body          String    @db.Text
+  variables     Json
+  promptVersion String?
+  modelUsed     String?
+  adviceClass   String    @default("general_information")  // general_information | firm_process | attorney_approved_advice
+  reviewState   DraftReviewState @default(DRAFT)
+  guardrailReport Json?
+  sentAt        DateTime?
+  externalId    String?   // NotificationLog.externalId after send
+  createdBy     String?
+
+  @@index([caseId])
+  @@index([leadId])
+  @@index([reviewState])
+  @@index([correlationId])
+}
+
+enum DraftReviewState {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  SENT
+}
+
+// Pending / decided HITL approvals.
+model HITLApproval {
+  id            String     @id @default(cuid())
+  createdAt     DateTime   @default(now())
+  agentId       String
+  gateId        String
+  correlationId String
+  caseId        String?
+  leadId        String?
+  draftId       String?    // optional link to AgentDraft
+  payload       Json
+  approverRole  String
+  requestedAt   DateTime   @default(now())
+  slaDueAt      DateTime
+  status        HITLStatus @default(PENDING)
+  decidedBy     String?
+  decidedAt     DateTime?
+  reason        String?    @db.Text
+  diff          Json?
+
+  @@index([status, slaDueAt])
+  @@index([caseId])
+  @@index([correlationId])
+}
+
+enum HITLStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+// Typed deadlines owned by the Deadline agent.
+model CaseDeadline {
+  id          String         @id @default(cuid())
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  caseId      String
+  kind        String         // e.g. "rfe_response", "biometrics", "interview", "filing_window"
+  title       String
+  dueAt       DateTime
+  quietHoursTz String?       // IANA tz, used for reminder windowing
+  remindersSent Json         @default("[]")  // array of { at, channel, status }
+  status      CaseDeadlineStatus @default(UPCOMING)
+  escalatedAt DateTime?
+  notes       String?        @db.Text
+
+  @@index([caseId])
+  @@index([dueAt, status])
+}
+
+enum CaseDeadlineStatus {
+  UPCOMING
+  APPROACHING  // within reminder window
+  DUE_SOON     // within 48h
+  OVERDUE
+  MISSED
+  RESOLVED
+  CANCELLED
+}
+
 model PartnerRole {
   id       String            @id @default(cuid())
   name     String            @unique
