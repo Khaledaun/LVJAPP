@@ -41,9 +41,13 @@ const INTENTIONAL_PUBLIC: string[] = [
   'auth/bootstrap/route.ts', // session-required internally, but NextAuth owns the boundary
   'health/route.ts',
   'terms/content/route.ts',
-  // Future: webhooks/webflow, webhooks/stripe, webhooks/kaspo — add here when
-  // those land. The audit opens a bug the moment a non-listed public-feeling
-  // webhook appears.
+  // HMAC-signed webhook ingress (C-009). Each MUST verify a signature
+  // before any side-effect; this script does not validate that — it only
+  // confirms the path is allowlisted. Per-webhook smoke (S-009 family)
+  // exercises the signature contract.
+  'webhooks/webflow/route.ts',
+  // Future webhooks/stripe and webhooks/kaspo land here when those
+  // sprints arrive (Sprint 8.5 / Sprint 5).
 ]
 
 const GUARD_PATTERNS = [

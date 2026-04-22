@@ -546,6 +546,63 @@ swap is mechanical.
 - Per-locale URL routing groups under `app/(locale)/` (a bigger
   refactor; not in 0.7 scope).
 
+### `pending` — Sprint 0.7-bis: Webflow webhook ingress (D-019 marketing parallel track)
+
+Smallest marketing-automation slice from D-019, executed in parallel
+with 0.7. Establishes HMAC-verified webhook ingress (control C-009)
+so Webflow form submissions can hit the platform now; the actual
+`MarketingLead` row creation defers to Sprint 13 once
+`MarketingLead` lands (Sprint 0.5 prereq for `tenantId` scoping).
+
+- **`lib/webflow.ts`** (new, server-only) —
+  `verifyWebhookSignature({ rawBody, signature, timestamp?, secret? })`:
+  HMAC-SHA256 with timing-safe comparison; supports both Webflow's
+  legacy body-only contract and the timestamp-prefixed variant
+  (`<timestamp>:<rawBody>`); rejects missing secret, missing /
+  malformed signature, length mismatch. Plus `WebflowEventType` /
+  `WebflowFormSubmissionPayload` types and a narrow `asFormSubmission`
+  guard so the route can pattern-match safely.
+- **`app/api/webhooks/webflow/route.ts`** (new) — POST endpoint.
+  Reads body as raw text *before* JSON parse (re-serialisation breaks
+  the HMAC). Tries timestamp-prefixed signature first, then
+  body-only. Bad signature → 401 + `webflow.webhook.rejected_bad_signature`
+  audit. Valid form_submission → 202 + audit row with siteId, formId,
+  and **only the data field key names** (per
+  `docs/EXECUTION_PLAN.md` §7.4 never-log-PII). Unsupported event →
+  202 + `unsupported_event` audit. Malformed JSON with valid
+  signature → 202 + `malformed_json` audit (we still ack to avoid
+  Webflow retries, but the audit signals upstream config drift).
+  Response body never echoes the signed payload (smoke S-009 asserts).
+- **`scripts/audit-auth.ts`** — `webhooks/webflow/route.ts` added to
+  the `INTENTIONAL_PUBLIC` allowlist (its boundary is the HMAC, not a
+  session). Comment notes the allowlist requires a per-route signature
+  smoke before adding any further entries.
+- **`.env.example`** — adds `WEBFLOW_API_TOKEN`, `WEBFLOW_SITE_ID`,
+  `WEBFLOW_WEBHOOK_SECRET` per Claude.md v4.0 §Phase 6.
+- **`__tests__/lib-webflow.test.ts`** — 12 unit assertions covering
+  every reject path (missing secret, missing/empty/non-hex signature,
+  forged secret, body tamper, timestamp mismatch) plus uppercase hex,
+  Buffer body, full happy paths, and `asFormSubmission` guard
+  positive + 5 null cases.
+- **`e2e-tests/webflow-webhook-smoke.spec.ts`** (S-009) — 7 cases:
+  no signature → 401; forged → 401; valid → 202; valid+timestamp →
+  202; unsupported event → 202 + ignored marker; malformed JSON →
+  202 + ignored marker; defence-in-depth assertion that response
+  body never echoes the signed payload (PII).
+
+**Smoke battery status.**
+- S-009 (Webflow webhook): **ships, deferred run** — needs live Next
+  server. Spec ready.
+- S-001/S-002: deferred (sandbox).
+
+**Deferred.**
+- `MarketingLead` Prisma model + write path (Sprint 13; depends on
+  Sprint 0.5 for `tenantId`).
+- Webflow Data API client (`lib/webflow.ts` extension for
+  `publishDraft` / `approvePublish`) — Sprint 13 / Sprint 10.5.
+- `Stripe`, `Kaspo` webhook receivers — Sprint 8.5 / Sprint 5
+  respectively, following the same C-009 pattern.
+
 ---
 
 ## Rolling open items
