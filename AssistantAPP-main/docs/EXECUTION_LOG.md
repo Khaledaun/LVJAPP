@@ -392,6 +392,70 @@ cross-reference to `EXECUTION_PLAN.md` is carried by §1 of the new
 file itself so the reference is live without a `Claude.md` version
 change.
 
+### `pending` — Sprint 0.1: close 12 unauthed API routes + ship A-002 script + S-003 smoke
+
+First sprint executed under `docs/EXECUTION_PLAN.md` v1.0 (§10.2
+recipe). Closes **B-001** (Sev-1) in `docs/BUGS.md`.
+
+- **`lib/rbac-http.ts`** (new, server-only) — introduces
+  `guardCaseAccess` / `guardOrgAccess` / `guardStaff`. Each wraps its
+  throwing counterpart in `lib/rbac.ts` and returns
+  `{ ok: true, user } | { ok: false, response: Response }` with the
+  response carrying a proper 401 / 403 status. Keeps HTTP-layer
+  wiring out of `lib/rbac.ts` (which stays mixed client/server).
+- **12 route wraps** (Phase 0 said 11; the Explore subagent found
+  `cases/[id]/timeline/` returning hardcoded mock data case-scoped,
+  so it was added):
+  - case-scoped via `params.id`: `cases/[id]/payments`,
+    `cases/[id]/meta`, `cases/[id]/documents/upload-url`,
+    `cases/[id]/timeline` — `guardCaseAccess(params.id)` at the top
+    of every method.
+  - case-scoped via `?caseId=` or `body.caseId`: `journey`,
+    `messages`, `documents`, `payments` — validate `caseId` present
+    (400 if not), then `guardCaseAccess(caseId)`.
+  - audit: `guardCaseAccess` when filtered by case, `guardStaff`
+    otherwise.
+  - staff-only: `staff`, `reports`, `messages` `notify` action.
+  - `signup/route.ts` — public for `role: 'client'` only;
+    role-escalation rejected with 403 unless the caller is an
+    authenticated global admin. Closes a pre-fix privilege-escalation
+    vector.
+- **`scripts/audit-auth.ts`** (A-002) — CI-ready static audit. Walks
+  every `app/api/**/route.ts`, classifies as GUARDED / STUB /
+  INTENTIONAL_PUBLIC / UNAUTHED. `INTENTIONAL_PUBLIC` allowlist:
+  `auth/[...nextauth]`, `auth/bootstrap`, `health`, `terms/content`.
+  Exit code 1 when any UNAUTHED route appears outside the allowlist.
+  Supports `--json` for machine consumption.
+- **`__tests__/lib-rbac-http.test.ts`** — unit coverage for the three
+  guard wrappers (happy path, 401, 403, status defaulting, mocked
+  `lib/rbac` assertions). No Prisma / no next-auth in the test.
+- **`e2e-tests/auth-smoke.spec.ts`** (S-003) — 14 adversarial cases.
+  Each hits the route with no cookies and asserts (a) status ∈
+  {400, 401, 403}, (b) status is not 2xx, not 500, (c) the JSON body
+  does not carry any of the handler's success-path keys (`items`,
+  `messages`, `documents`, `payments`, `stages`, `kpis`, `case`,
+  `user`). Signup's role-escalation attempt expects 403 specifically.
+- **`docs/BUGS.md`** — appended `B-001` with full reproduction, root
+  cause, fix, tenant impact. Status `fixed`.
+
+**Smoke battery status.**
+- S-001 (build + typecheck): **deferred** — sandbox has no
+  `node_modules`. `docs/EXECUTION_PLAN.md` §9.5 discipline applied:
+  PR description lists the deferral rather than claiming green.
+- S-002 (jest): **deferred** — same reason. New unit tests compile
+  against existing Jest config patterns.
+- S-003 (auth smoke): **deferred to CI** — the spec ships; first run
+  is blocked on a live Next dev server + DB. Ready to execute.
+
+**Deferred.**
+- Provision Postgres + `node_modules` in sandbox/CI so S-001..S-003
+  actually run.
+- `scripts/audit-auth.ts` runs via `ts-node` today; wire it to
+  `npm run audit:auth` and to `.github/workflows/ci.yml` (both in
+  §12.1 of EXECUTION_PLAN).
+- Migrate the other `getServerSession` call sites to `guardX` as
+  their owning sprints touch them (not a Sprint 0.1 goal).
+
 ---
 
 ## Rolling open items

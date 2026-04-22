@@ -74,7 +74,57 @@ these are deferred deliverables, not defects:
 
 ## Closed / Sev-3 / Sev-4 / historical
 
-*None yet.*
+*See B-001 below.*
+
+---
+
+## B-001 · 12 API routes exposed business logic without auth · Sev-1 · fixed · 2026-04-22 · lead engineer
+
+- **Discovered by:** Phase 0 audit §9 (PR #8), confirmed by Explore
+  subagent during Sprint 0.1 kickoff (this PR).
+- **Affected:** 12 route.ts files under `app/api/`:
+  `audit/`, `staff/`, `journey/`, `messages/`, `payments/`,
+  `reports/`, `documents/`, `signup/`, `cases/[id]/meta/`,
+  `cases/[id]/payments/`, `cases/[id]/documents/upload-url/`,
+  `cases/[id]/timeline/`. Phase 0 listed 11; `cases/[id]/timeline/`
+  was an additional stub returning hardcoded mock data case-scoped —
+  also unguarded. Total: 12 routes closed.
+- **Reproduction:** `curl -i http://localhost:3000/api/staff` (pre-fix)
+  → 200 with staff list. Post-fix → 401. Analogous for the others.
+  Full adversarial matrix in `e2e-tests/auth-smoke.spec.ts` (S-003).
+- **Root cause:** Routes were scaffolded prior to the Sprint 0
+  rehabilitation of `lib/rbac.ts`; the auth helpers existed but were
+  never imported into these handlers. For `signup/route.ts` there was
+  an additional **privilege-escalation** vector: any anonymous caller
+  could POST `{ role: 'lvj_admin', … }` and receive a platform-admin
+  account.
+- **Fix:**
+  1. New `lib/rbac-http.ts` wraps `assertCaseAccess` / `assertOrgAccess`
+     / `assertStaff` as `guardCaseAccess` / `guardOrgAccess` /
+     `guardStaff` — returning a `{ ok, response | user }` shape that
+     maps thrown auth errors to proper 401 / 403 NextResponses.
+  1. Each of the 12 routes calls the correct guard at the top of every
+     HTTP method before any Prisma call or business logic.
+  1. `signup/route.ts` now forces `role: 'client'` for public callers;
+     only an authenticated global admin may elevate.
+  1. `__tests__/lib-rbac-http.test.ts` — unit coverage for the new
+     wrappers (happy path, 401, 403, defaulting).
+  1. `e2e-tests/auth-smoke.spec.ts` — 14 adversarial cases, each
+     asserts non-2xx, non-500, and that the response body does not
+     leak the handler's success-path keys.
+  1. `scripts/audit-auth.ts` — A-002 enforcement; exits non-zero when
+     any new route appears unguarded.
+- **Related:** D-019 (sprint 0.1 priority); A-002 (auth audit);
+  S-003 (auth smoke); `docs/EXECUTION_PLAN.md` §8 C-001.
+- **Tenant impact:** any caller could previously read / write any
+  tenant's case data, audit log, staff list, KPI report, and (via
+  signup) provision a platform-admin account. Severity-1 across the
+  fleet. No production deployment had occurred, so the audit trail
+  starts at `2026-04-22`; if a private staging env was exposed during
+  Sprint 0, review its access log.
+- **Locale impact:** none (auth boundary is pre-locale).
+- **Status:** `fixed` — commit <pending SHA in this PR> on branch
+  `claude/execution-plan-framework-Ls8tj`.
 
 ---
 

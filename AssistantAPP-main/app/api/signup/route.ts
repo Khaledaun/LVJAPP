@@ -4,11 +4,18 @@ export const runtime = 'nodejs';
 export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
-const AllowedUserRoles: UserRole[] = [
-  'client','lvj_admin','lvj_team','lvj_marketing','lawyer_admin','lawyer_associate','lawyer_assistant'
-];
+// Public-facing self-signup creates CLIENT accounts only. Staff / lawyer
+// roles are provisioned by a Tenant Admin via a separate admin flow —
+// never via public signup (see Sprint 0.1, D-019). Role escalation
+// here was a pre-fix privilege-escalation vector.
 export type Language = 'en' | 'ar' | 'pt';
-import { UserRole } from "@/lib/rbac";
+import { UserRole, isGlobalAdmin } from "@/lib/rbac";
+import { getServerSession } from "next-auth";
+import { getAuthOptions } from "@/lib/auth";
+
+const ADMIN_GRANTABLE_ROLES: UserRole[] = [
+  'client','lvj_team','lvj_marketing','lawyer_admin','lawyer_associate','lawyer_assistant'
+];
 
 import { NextRequest, NextResponse } from "next/server";
 import bcryptjs from "bcryptjs";
@@ -19,21 +26,31 @@ export async function POST(request: NextRequest) {
   const prisma = await getPrisma();
   try {
     const body = await request.json();
-    const { 
-      email, 
-      password, 
-      firstName, 
-      lastName, 
+    const {
+      email,
+      password,
+      firstName,
+      lastName,
       phone,
       role: inputRole = 'client',
       preferredLanguage = 'EN'
     } = body;
 
-    // Map any role to a valid UserRole
+    // Role selection: public self-signup → forced to 'client'.
+    // An authenticated global admin may create other roles via this endpoint.
     let role: UserRole = 'client';
-    const validRoles = AllowedUserRoles;
-    if (validRoles.includes(inputRole as UserRole)) {
-      role = inputRole as UserRole;
+    if (inputRole && inputRole !== 'client') {
+      const authOptions = await getAuthOptions();
+      const session = await getServerSession(authOptions);
+      const callerRole = (session as any)?.user?.role;
+      if (isGlobalAdmin(callerRole) && ADMIN_GRANTABLE_ROLES.includes(inputRole as UserRole)) {
+        role = inputRole as UserRole;
+      } else {
+        return NextResponse.json(
+          { error: "Only a platform admin may create non-client accounts" },
+          { status: 403 }
+        );
+      }
     }
 
     // Validate required fields

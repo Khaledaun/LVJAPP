@@ -1,18 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { getAuthOptions } from "@/lib/auth";
+import { guardCaseAccess } from "@/lib/rbac-http";
 
 export const dynamic = "force-dynamic";
 
 // POST /api/cases/[id]/documents/upload-url - Generate signed upload URL
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const authOptions = await getAuthOptions();
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const g = await guardCaseAccess(params.id);
+    if (!g.ok) return g.response;
 
     const caseId = params.id;
     const body = await req.json();
