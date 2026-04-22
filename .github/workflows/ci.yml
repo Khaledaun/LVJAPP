@@ -56,6 +56,16 @@ jobs:
       - name: A-002 · auth-on-every-route audit
         run: npm run audit:auth
 
+      - name: A-004 · jurisdiction audit (informational)
+        run: npm run audit:jurisdiction
+
+      - name: A-010 · doc-discipline audit
+        run: npm run audit:docs -- --base origin/main --head HEAD
+        # Only enforced on pull_request events; push to main is exempt
+        # because the log entry for a direct push would have to append
+        # to itself (chicken/egg).
+        if: github.event_name == 'pull_request'
+
       - name: Type check
         run: npx tsc --noEmit
 

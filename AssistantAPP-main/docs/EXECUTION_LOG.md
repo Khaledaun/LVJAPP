@@ -661,6 +661,43 @@ Closes two more entries from `docs/EXECUTION_PLAN.md` §12.1.
 No runtime behaviour changes; the scripts + cron schedules are
 declaration-only until their handlers exist.
 
+### `pending` — Tooling: A-010 lint-docs + scripts/pii-scrub.ts
+
+Closes two more items from `docs/EXECUTION_PLAN.md` §12.1.
+
+- **`scripts/lint-docs.ts`** (new) — A-010 per D-005. Four rules:
+  (R1) source diff requires `docs/EXECUTION_LOG.md` diff;
+  (R2) long-lived contract doc diff (Claude.md / PRD / AGENT_OS /
+       EXECUTION_PLAN) requires a version header bump;
+  (R3) `docs/EXECUTION_LOG.md` is append-only — pre-existing commit
+       entries cannot be deleted;
+  (R4) `docs/DECISIONS.md` entries are immutable bodies; the only
+       allowed in-place change is a new `superseded-by: D-NNN` marker.
+       Otherwise a new D-NNN must be added.
+  Compares `origin/main..HEAD` by default; configurable via
+  `--base` / `--head`. `--json` for CI consumption.
+- **`scripts/pii-scrub.ts`** (new) — `scrubPii(input)` +
+  `scrubPiiDeep(value)`. Nine patterns: email, international phone,
+  passport-ish (loose), US SSN, Portugal NIF, credit-card-like,
+  IBAN, DOB (YYYY-MM-DD / DD/MM/YYYY), IPv4. Output tokens are
+  `[REDACTED:<kind>]` so logs stay grep-able. CLI wrapper reads
+  stdin and emits summary on stderr.
+- **`__tests__/lib-pii-scrub.test.ts`** — 11 unit assertions
+  covering every pattern, nested object walk, array walk, and
+  empty-input / no-match paths.
+- **`package.json`** — `audit:docs`, `audit:docs:json` scripts.
+- **`.github/workflows/ci.yml`** — adds `A-004 jurisdiction` +
+  `A-010 doc-discipline` steps. A-010 only fires on
+  `pull_request` events (direct-to-main pushes are exempt by
+  necessity — the log entry would have to append to itself).
+- **`docs/EXECUTION_PLAN.md` §12.1** — two more items ticked
+  (lint-docs, pii-scrub). C-019 now references the centralised
+  helper.
+
+Three items remain open in §12.1: `scripts/audit-tenant.ts`
+(Sprint 0.5 blocker), `scripts/audit-prisma.ts` (Sprint 0.5 follow-
+up), and `scripts/smoke/<id>.ts` (lands per sprint).
+
 ---
 
 ## Rolling open items

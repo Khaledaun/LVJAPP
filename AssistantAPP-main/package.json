@@ -25,6 +25,8 @@
     "audit:auth:json": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/audit-auth.ts --json",
     "audit:jurisdiction": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/audit-jurisdiction.ts",
     "audit:jurisdiction:json": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/audit-jurisdiction.ts --json",
+    "audit:docs": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/lint-docs.ts",
+    "audit:docs:json": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/lint-docs.ts --json",
     "smoke:auth": "playwright test e2e-tests/auth-smoke.spec.ts",
     "smoke:locale": "playwright test e2e-tests/locale-smoke.spec.ts",
     "smoke:webflow": "playwright test e2e-tests/webflow-webhook-smoke.spec.ts",

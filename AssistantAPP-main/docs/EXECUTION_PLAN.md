@@ -1134,11 +1134,14 @@ direction.
 - [x] **`scripts/audit-jurisdiction.ts`** — A-004 (informational).
 - [ ] **`scripts/audit-prisma.ts`** — C-004 enforcement (additive
       only).
-- [ ] **`scripts/lint-docs.ts`** — A-010 enforcement.
+- [x] **`scripts/lint-docs.ts`** — A-010 (4 rules: source-diff →
+      log, contract-doc version bump, log append-only, DECISIONS
+      immutable body).
 - [ ] **`scripts/smoke/<id>.ts`** — S-001 … S-013 scaffolding;
       landed incrementally per sprint.
-- [ ] **`scripts/pii-scrub.ts`** — centralised; currently
-      per-callsite.
+- [x] **`scripts/pii-scrub.ts`** — centralised `scrubPii` +
+      `scrubPiiDeep` (9 patterns: email, phone, passport, SSN, NIF,
+      card, IBAN, DOB, IP). Wired from agents in §8 C-019.
 - [x] **`.github/workflows/ci.yml`** — per-PR audit + smoke battery.
 - [x] **`.claude/settings.json`** — project settings for Claude Code
       (permissions + env baseline).
