@@ -698,6 +698,79 @@ Three items remain open in §12.1: `scripts/audit-tenant.ts`
 (Sprint 0.5 blocker), `scripts/audit-prisma.ts` (Sprint 0.5 follow-
 up), and `scripts/smoke/<id>.ts` (lands per sprint).
 
+### `pending` — Core KB v0.1: 10 draft articles (AOS Phase 1 unblock)
+
+Lands the Core KB v0.1 scope listed in `docs/AGENT_OS.md` §6.5 as
+`confidence: draft` scaffolds. Each carries full YAML front-matter
+(owner, jurisdiction, audience, tone, confidence, review TTL) so
+the staleness sweep (A-005) and the `legalKb.retrieve()` filter
+already work against them. Promotion to `reviewed` or
+`authoritative` is blocked on lawyer + native-AR reviewer sign-off
+per D-015.
+
+- **`skills/core/identity.md`** — LVJ-the-Platform vs.
+  LVJ-the-firm; primary / secondary / out-of-scope jurisdictions
+  per D-006; public-facing domains; support hours + pager
+  discipline; banned cross-jurisdiction claims; Portuguese CTA
+  replaces IOLTA.
+- **`skills/core/roles.md`** — 10-row role matrix mirrored from
+  PRD v0.3 §2.2 + disclosure rules per role + agent-invocation vs.
+  target-data split (manifest `invoker` vs. `acts_on_behalf_of`) +
+  common role-mistake catalogue.
+- **`skills/core/case-lifecycle.md`** — 14 canonical case statuses
+  (lead → intake → active → documents_pending → submitted →
+  awaiting_decision → additional_evidence_requested → approved /
+  denied → appeal_pending → completed / archived) with traffic-light
+  mapping, transition rules, banned transitions, jurisdiction-aware
+  labels per D-006 (no RFE; "additional evidence requested" for PT).
+- **`skills/core/escalation/matrix.md`** — D-013 4-tier definitions
+  (Standard / Urgent / Critical / Marketing) + the 10 typed
+  `escalation.*` events (criminal_history, prior_refusal,
+  urgent_deadline, adverse_notice, distressed_client,
+  fraud_indicator, fee_dispute, inconsistent_identity,
+  marketing_content, cross_tenant_data_leak) + routing, pause
+  semantics, channel cadence on SLA miss.
+- **`skills/core/disclaimers/upl.md`** — information-vs-advice
+  triad (`general_information` / `firm_process` /
+  `attorney_approved_advice`); 12 banned outcome-guarantee phrases;
+  UPL risk patterns (cross-jurisdiction conclusions); 3 approved
+  hedging templates; AR mirror requirement per D-015.
+- **`skills/core/disclaimers/outcome.md`** — 6-row banned→approved
+  substitution table, probability-question scripts, explicit
+  handoff script for a client who pushes for a guarantee, scanner
+  contract in `lib/agents/guardrails.ts`.
+- **`skills/core/privacy/consent.md`** — consent contract per
+  channel (email / sms / whatsapp / voice / push / recording);
+  D-014 quiet hours; GDPR lawful-basis table for PT; UAE PDPL
+  posture; scripted consent prompts in EN + AR.
+- **`skills/core/privacy/retention.md`** — 14-class retention
+  window table; legal-hold carve-out; agent contract
+  (no direct deletes; audit on retention.deleted); D-018
+  k-anonymity cross-tenant aggregate exception.
+- **`skills/core/tone/legal-formal.md`** — voice, structure,
+  AR register, banned markers.
+- **`skills/core/tone/empathetic-client.md`** — voice, anti-patterns,
+  4 example openings (EN + AR) including the post-denial handoff
+  that is *never* auto-sent.
+- **`skills/core/tone/internal-ops.md`** — HITL-summary template
+  and deadline-page template; code-style for IDs / dates / paths.
+- **`skills/core/tone/marketing.md`** — SEO/AEO/GEO structured-data
+  contract (Article + FAQPage + dateModified + jurisdiction chip);
+  banned marketing phrasings; AR never auto-publishes (D-010 +
+  D-015).
+- **`skills/core/languages.md`** — shipped-locales matrix
+  (EN ✅ / AR ✅ / PT stub); path>cookie>Accept-Language precedence;
+  Latin identifiers under RTL; AR reviewer chain; name
+  transliteration discipline.
+- **`skills/core/SKILL.md`** — index + maturity note.
+
+Every article's `confidence: draft` flag keeps the
+`legalKb.retrieve({ confidence: 'authoritative' })` filter from
+serving them to client-facing outputs today. The scanner still
+enforces the banned-phrase / UPL / PII rules regardless of
+maturity — this unblocks development while the lawyer review
+proceeds.
+
 ---
 
 ## Rolling open items
