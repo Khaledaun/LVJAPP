@@ -7,56 +7,225 @@ import useSWR from 'swr'
 import { useState } from 'react'
 import Link from 'next/link'
 import { CaseTabs } from '@/components/case/CaseTabs'
-import SimpleTopbar from '@/components/site/SimpleTopbar'
+import AppShell from '@/components/lvj/app-shell'
+import { default as LvjTrafficLightBadge } from '@/components/lvj/traffic-light-badge'
+import { IconCheck } from '@/components/lvj/icons'
 import { TrafficLightBadge, useTrafficLightFeature, type TrafficLightStatus } from '@/components/ui/TrafficLightBadge'
 
 type TabKey = 'overview' | 'documents' | 'messages' | 'payments'
 const fetcher = (u: string) => fetch(u).then(r => r.json())
 const norm = (s: any) => String(s ?? '').toLowerCase()
 
+const DEFAULT_STEPPER = [
+  { label: 'Intake',         when: 'Feb 12',   state: 'done' as const },
+  { label: 'Documents',      when: 'Mar 02',   state: 'done' as const },
+  { label: 'Filed',          when: 'Mar 18',   state: 'done' as const },
+  { label: 'USCIS review',   when: 'Ongoing',  state: 'cur'  as const },
+  { label: 'Biometrics',     when: 'Apr 28',   state: 'upc'  as const },
+  { label: 'Priority date',  when: 'Est. Aug', state: 'upc'  as const },
+  { label: 'Adjudication',   when: 'Q3 2026',  state: 'upc'  as const },
+]
+
+function CaseStepper({ steps = DEFAULT_STEPPER }: { steps?: typeof DEFAULT_STEPPER }) {
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: `repeat(${steps.length},1fr)`,
+        gap: 0,
+        position: 'relative',
+      }}
+    >
+      {steps.map((s, i, a) => (
+        <div key={i} style={{ textAlign: 'center', position: 'relative', padding: '0 4px' }}>
+          {i < a.length - 1 && (
+            <div
+              aria-hidden
+              style={{
+                position: 'absolute', top: 13, left: '50%', right: '-50%', height: 1,
+                background: s.state === 'done' ? 'var(--emerald)' : 'var(--rule)',
+                zIndex: 0,
+              }}
+            />
+          )}
+          <div
+            style={{
+              position: 'relative', width: 28, height: 28, margin: '0 auto', borderRadius: '50%',
+              background: s.state === 'done' ? 'var(--emerald)'
+                        : s.state === 'cur'  ? 'var(--lvj-amber-bg)'
+                        : 'var(--paper)',
+              border: '1px solid '
+                     + (s.state === 'done' ? 'var(--emerald)'
+                      : s.state === 'cur'  ? 'var(--lvj-amber)'
+                      : 'var(--stone-2)'),
+              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1,
+              color: s.state === 'done' ? 'var(--ivory)'
+                   : s.state === 'cur'  ? 'var(--lvj-amber)'
+                   : 'var(--stone-3)',
+              fontFamily: 'var(--lvj-sans)', fontSize: 11.5, fontWeight: 500,
+            }}
+          >
+            {s.state === 'done' ? <IconCheck width={12} height={12} strokeWidth={2} /> : i + 1}
+          </div>
+          <div
+            style={{
+              marginTop: 12,
+              fontFamily: 'var(--lvj-serif)',
+              fontSize: 13,
+              color: s.state === 'upc' ? 'var(--stone-3)' : 'var(--ink)',
+              fontWeight: s.state === 'cur' ? 500 : 400,
+              lineHeight: 1.2,
+            }}
+          >
+            {s.label}
+          </div>
+          <div style={{ marginTop: 4, fontFamily: 'var(--lvj-mono)', fontSize: 10, color: 'var(--stone-3)', letterSpacing: '.04em' }}>
+            {s.when}
+          </div>
+          {s.state === 'cur' && (
+            <div style={{ marginTop: 4, fontSize: 9.5, letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--lvj-amber)', fontWeight: 500 }}>
+              Now
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function CaseDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [tab, setTab] = useState<TabKey>('overview')
   const { data, isLoading } = useSWR<{ case: any }>(`/api/cases/${id}`, fetcher)
 
-  if (isLoading) return <main><TermsGate /><SimpleTopbar /><div className="p-6">Loading…</div></main>
-  if (!data?.case) {
+  if (isLoading) {
     return (
-      <main>
+      <>
         <TermsGate />
-        <SimpleTopbar />
-        <div className="p-6 space-y-4">
-          <Link href="/cases" className="text-sm underline underline-offset-4">&larr; Back to cases</Link>
-          <div className="text-sm text-red-600">Case not found.</div>
-        </div>
-      </main>
+        <AppShell crumbs={['Workspace', 'Cases', id ?? '…']}>
+          <div className="lvj-page-head">
+            <div><h1>Loading…</h1></div>
+          </div>
+        </AppShell>
+      </>
     )
   }
+
+  if (!data?.case) {
+    return (
+      <>
+        <TermsGate />
+        <AppShell crumbs={['Workspace', 'Cases', id ?? '…']}>
+          <div className="lvj-page-head">
+            <div>
+              <div className="kicker">Not found</div>
+              <h1>Case not found</h1>
+              <p className="lede">
+                This case does not exist or you do not have permission to view it.
+              </p>
+            </div>
+            <div className="actions">
+              <Link href="/cases" className="lvj-btn ghost">← Back to cases</Link>
+            </div>
+          </div>
+        </AppShell>
+      </>
+    )
+  }
+
   const c = data.case
+  const caseNumber = c.caseNumber ?? c.id
+  const serviceLabel = c.serviceType?.title ?? c.visaType ?? 'Matter'
+  const openedAt = c.createdAt ? new Date(c.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: '2-digit' }) : '—'
 
   return (
-    <main>
+    <>
       <TermsGate />
-      <SimpleTopbar />
-      <ExternalPartnersManager caseId={id} />
-      <div className="p-6 space-y-4 max-w-5xl mx-auto">
-        <Link href="/cases" className="text-sm underline underline-offset-4">&larr; Back to cases</Link>
-
-        <div>
-          <h1 className="text-2xl font-semibold">{c.title}</h1>
-          <div className="text-sm text-muted-foreground">
-            {c.applicantName} • {c.applicantEmail} • {norm(c.status)}
+      <AppShell
+        crumbs={['Workspace', 'Cases', caseNumber]}
+        sidebar={{ user: { name: 'Laila Al-Jabari', role: 'Partner · Admin', initial: 'L' } }}
+      >
+        {/* Hero header */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            marginBottom: 32,
+            gap: 40,
+          }}
+        >
+          <div style={{ flex: 1 }}>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}>
+              <span className="lvj-chip emerald">{serviceLabel}</span>
+              <LvjTrafficLightBadge status={c.status ?? c.overallStatus ?? 'draft'} />
+              <span style={{ fontFamily: 'var(--lvj-mono)', fontSize: 11, color: 'var(--stone-3)', letterSpacing: '.08em' }}>
+                {caseNumber} · Opened {openedAt}
+              </span>
+            </div>
+            <h1
+              style={{
+                fontFamily: 'var(--lvj-serif)', fontWeight: 300, fontSize: 44, lineHeight: 1.05,
+                letterSpacing: '-.01em', marginBottom: 10,
+              }}
+            >
+              {c.title}
+              {c.applicantName && (
+                <>
+                  <br />
+                  <span style={{ fontStyle: 'italic', color: 'var(--stone-4)' }}>{c.applicantName}</span>
+                </>
+              )}
+            </h1>
+            {c.applicantEmail && (
+              <div style={{ display: 'flex', gap: 20, fontFamily: 'var(--lvj-mono)', fontSize: 11, color: 'var(--stone-3)', letterSpacing: '.05em' }}>
+                <span>{c.applicantEmail}</span>
+              </div>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button className="lvj-btn ghost sm" type="button">Message Client</button>
+            <button className="lvj-btn ghost sm" type="button">Upload</button>
+            <button className="lvj-btn sm" type="button">Update Status</button>
           </div>
         </div>
 
-        <CaseTabs active={tab} onChange={setTab} />
+        {/* Horizontal stepper */}
+        <div className="lvj-card" style={{ marginBottom: 24 }}>
+          <div className="lvj-card-head">
+            <div>
+              <div className="kicker">Case journey</div>
+              <h3>Progress</h3>
+            </div>
+            {typeof c.completionPercentage === 'number' && (
+              <span className="lvj-chip emerald">{c.completionPercentage}% complete</span>
+            )}
+          </div>
+          <div style={{ padding: '28px 26px 24px' }}>
+            <CaseStepper />
+          </div>
+        </div>
 
-        {tab === 'overview'  && <Overview  id={c.id} />}
-        {tab === 'documents' && <Documents id={c.id} />}
-        {tab === 'messages'  && <SafeMessages id={c.id} />}
-        {tab === 'payments'  && <Payments  id={c.id} />}
-      </div>
-    </main>
+        {/* Existing per-case external partners block (preserved) */}
+        <div style={{ marginBottom: 24 }}>
+          <ExternalPartnersManager caseId={id} />
+        </div>
+
+        {/* Tabs + tab bodies (preserved) */}
+        <div className="lvj-card">
+          <div className="lvj-card-body">
+            <CaseTabs active={tab} onChange={setTab} />
+
+            <div style={{ marginTop: 20 }}>
+              {tab === 'overview'  && <Overview  id={c.id} />}
+              {tab === 'documents' && <Documents id={c.id} />}
+              {tab === 'messages'  && <SafeMessages id={c.id} />}
+              {tab === 'payments'  && <Payments  id={c.id} />}
+            </div>
+          </div>
+        </div>
+      </AppShell>
+    </>
   )
 }
 
