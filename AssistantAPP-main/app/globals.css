@@ -1,7 +1,10 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
- 
+
+/* ────────────────────────────────────────────────────────────────
+   shadcn/ui token layer (kept verbatim so existing components work)
+   ──────────────────────────────────────────────────────────────── */
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -9,68 +12,290 @@
 
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
- 
+
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
- 
+
     --primary: 222.2 47.4% 11.2%;
     --primary-foreground: 210 40% 98%;
- 
+
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
- 
+
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
- 
+
     --accent: 210 40% 96.1%;
     --accent-foreground: 222.2 47.4% 11.2%;
- 
+
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 222.2 84% 4.9%;
- 
+
     --radius: 0.5rem;
   }
- 
+
   .dark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
- 
+
     --card: 222.2 84% 4.9%;
     --card-foreground: 210 40% 98%;
- 
+
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
- 
+
     --primary: 210 40% 98%;
     --primary-foreground: 222.2 47.4% 11.2%;
- 
+
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
- 
+
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
- 
+
     --accent: 217.2 32.6% 17.5%;
     --accent-foreground: 210 40% 98%;
- 
+
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
- 
+
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
   }
 }
- 
+
 @layer base {
   * {
-    @applyborder-color: hsl(var(--border));
+    border-color: hsl(var(--border));
   }
   body {
-    @applybackground-color: hsl(var(--background)); color: hsl(var(--foreground));
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
   }
 }
+
+/* ────────────────────────────────────────────────────────────────
+   LVJ design tokens  — ported from the LVJ Case Management design
+   pack (claude.ai/design · 2026-04-22). Do not prune; components
+   below and in components/lvj/* bind to these.
+   ──────────────────────────────────────────────────────────────── */
+:root {
+  --ink:#0A0A0A;
+  --ink-soft:#1a1816;
+  --ivory:#F4EFE6;
+  --ivory-warm:#EBE3D3;
+
+  --canvas:#F3EDE1;
+  --paper:#FBF8F2;
+  --surface-raised:#FFFCF5;
+  --sunken:#EBE3D3;
+
+  --emerald:#2F5239;
+  --emerald-deep:#1E3926;
+  --emerald-mist:#E4E9DB;
+
+  --gold:#B8985A;
+  --gold-soft:#D4B87A;
+
+  --stone-1:#E8E2D4;
+  --stone-2:#C9C1B0;
+  --stone-3:#8A8373;
+  --stone-4:#4A463E;
+
+  --rule:rgba(10,10,10,0.12);
+  --rule-soft:rgba(10,10,10,0.06);
+  --rule-ivory:rgba(244,239,230,0.18);
+
+  --lvj-red:#B02A1F;
+  --lvj-red-bg:#F6E6E3;
+  --lvj-amber:#9A6B1C;
+  --lvj-amber-bg:#F5EAD2;
+  --lvj-green:#1E6B46;
+  --lvj-green-bg:#D8E8DD;
+
+  --lvj-serif:var(--font-lvj-serif),"Cormorant Garamond","EB Garamond",Garamond,serif;
+  --lvj-sans:var(--font-lvj-sans),"Inter",-apple-system,BlinkMacSystemFont,sans-serif;
+  --lvj-mono:var(--font-lvj-mono),"JetBrains Mono",ui-monospace,monospace;
+  --lvj-arabic:var(--font-lvj-arabic),"Amiri","Scheherazade New",serif;
+}
+
+/* ────────────────────────────────────────────────────────────────
+   LVJ base / app shell
+   Scoped under `.lvj` so shadcn-rendered surfaces are untouched.
+   Apply to any container via <div className="lvj …"> and the
+   nested LVJ components pick up tokens + layout rules.
+   ──────────────────────────────────────────────────────────────── */
+.lvj {
+  font-family: var(--lvj-sans);
+  font-weight: 300;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "kern","liga","ss01";
+}
+
+/* App shell — 260px sidebar + main column. */
+.lvj-app {
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--lvj-sans);
+  font-weight: 300;
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: 100vh;
+  height: 100%;
+}
+.lvj-app.rtl { grid-template-columns: 1fr 260px; direction: rtl; }
+.lvj-app.rtl .lvj-sidebar { order: 2; border-right: none; border-left: 1px solid rgba(0,0,0,.2); }
+.lvj-app.rtl .lvj-main { order: 1; direction: rtl; }
+.lvj-app.rtl .lvj-sb-item.active::before { left: auto; right: 0; }
+.lvj-app.rtl .lvj-sb-item .badge { margin-left: 0; margin-right: auto; }
+
+/* Sidebar */
+.lvj-sidebar {
+  background: var(--ink);
+  color: var(--ivory);
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid rgba(0,0,0,.2);
+}
+.lvj-sb-mark { padding: 28px 28px 22px; border-bottom: 1px solid var(--rule-ivory); display: flex; align-items: baseline; gap: 10px; }
+.lvj-sb-mark .wm { font-family: var(--lvj-serif); font-weight: 300; font-size: 22px; letter-spacing: .32em; padding-left: .32em; }
+.lvj-sb-mark .ver { font-size: 9px; letter-spacing: .22em; color: var(--stone-3); margin-left: auto; text-transform: uppercase; }
+.lvj-sb-sub { padding: 14px 28px 22px; font-size: 10px; letter-spacing: .22em; text-transform: uppercase; color: var(--gold-soft); border-bottom: 1px solid var(--rule-ivory); }
+.lvj-sb-group { padding: 22px 16px 6px; }
+.lvj-sb-group-label { font-size: 9.5px; letter-spacing: .24em; text-transform: uppercase; color: var(--stone-3); padding: 0 14px 10px; }
+.lvj-sb-item { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 2px; font-size: 13px; color: var(--stone-2); cursor: pointer; letter-spacing: .01em; position: relative; text-decoration: none; }
+.lvj-sb-item:hover { color: var(--ivory); background: rgba(255,255,255,.03); }
+.lvj-sb-item.active { color: var(--ivory); background: rgba(255,255,255,.04); }
+.lvj-sb-item.active::before { content: ""; position: absolute; left: 0; top: 6px; bottom: 6px; width: 2px; background: var(--gold); }
+.lvj-sb-item .ico { width: 16px; height: 16px; flex: 0 0 16px; display: flex; align-items: center; justify-content: center; color: var(--stone-3); }
+.lvj-sb-item.active .ico { color: var(--gold-soft); }
+.lvj-sb-item .badge { margin-left: auto; font-family: var(--lvj-mono); font-size: 10px; color: var(--gold-soft); background: rgba(184,152,90,.12); padding: 2px 7px; border-radius: 10px; }
+.lvj-sb-foot { margin-top: auto; padding: 18px 22px; border-top: 1px solid var(--rule-ivory); display: flex; align-items: center; gap: 12px; }
+.lvj-sb-foot .av { width: 34px; height: 34px; border-radius: 50%; background: var(--emerald); color: var(--ivory); display: flex; align-items: center; justify-content: center; font-family: var(--lvj-serif); font-size: 15px; border: 1px solid var(--gold); flex: 0 0 34px; }
+.lvj-sb-foot .who { display: flex; flex-direction: column; min-width: 0; }
+.lvj-sb-foot .nm { font-size: 12.5px; color: var(--ivory); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lvj-sb-foot .rl { font-size: 9.5px; letter-spacing: .22em; text-transform: uppercase; color: var(--gold-soft); margin-top: 3px; }
+
+/* Main area */
+.lvj-main { display: flex; flex-direction: column; overflow: auto; background: var(--canvas); }
+.lvj-topbar { display: flex; align-items: center; padding: 18px 40px; border-bottom: 1px solid var(--rule); background: var(--canvas); gap: 24px; min-height: 72px; }
+.lvj-crumb { font-size: 10.5px; letter-spacing: .22em; text-transform: uppercase; color: var(--stone-3); }
+.lvj-crumb b { color: var(--ink); font-weight: 400; }
+.lvj-topbar .search { margin-left: auto; display: flex; align-items: center; gap: 10px; border: 1px solid var(--rule); padding: 8px 14px; width: 320px; background: var(--paper); border-radius: 2px; }
+.lvj-topbar .search input { border: none; background: transparent; outline: none; font-size: 13px; font-family: var(--lvj-sans); font-weight: 300; color: var(--ink); flex: 1; }
+.lvj-topbar .search input::placeholder { color: var(--stone-3); }
+.lvj-topbar .search .kbd { font-family: var(--lvj-mono); font-size: 10px; color: var(--stone-3); border: 1px solid var(--rule); padding: 1px 6px; border-radius: 2px; }
+.lvj-topbar .icobtn { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--rule); color: var(--stone-4); cursor: pointer; background: var(--paper); position: relative; }
+.lvj-topbar .icobtn .dot { position: absolute; top: 8px; right: 8px; width: 6px; height: 6px; border-radius: 50%; background: var(--gold); }
+
+.lvj-page { padding: 40px; flex: 1; }
+.lvj-page-head { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 36px; gap: 40px; }
+.lvj-page-head h1 { font-family: var(--lvj-serif); font-weight: 300; font-size: 44px; line-height: 1.05; letter-spacing: -.01em; }
+.lvj-page-head .kicker { font-size: 10.5px; letter-spacing: .24em; text-transform: uppercase; color: var(--stone-3); margin-bottom: 10px; }
+.lvj-page-head .lede { font-family: var(--lvj-serif); font-style: italic; font-weight: 300; font-size: 17px; color: var(--stone-4); margin-top: 12px; max-width: 520px; }
+.lvj-page-head .actions { display: flex; gap: 10px; }
+
+/* Type discipline — serif only ≥15px; smaller uses Inter. */
+.lvj-micro, .lvj-caps, .lvj-kicker, .lvj-case-id, .lvj-chip, .lvj-sb-item,
+.lvj-sb-group-label, .lvj-topbar, .lvj-crumb, .lvj-badge, .lvj-kbd,
+.lvj-kpi .lbl, .lvj-kpi .delta, .lvj-jstep .when,
+.lvj-tbl thead th, .lvj-tbl .applicant .em, .lvj-tbl .case-id,
+.lvj-sb-foot .rl {
+  font-family: var(--lvj-sans);
+}
+
+/* Buttons */
+.lvj-btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; font-family: var(--lvj-sans); font-size: 11.5px; letter-spacing: .18em; text-transform: uppercase; border: 1px solid var(--ink); background: var(--ink); color: var(--ivory); cursor: pointer; font-weight: 400; }
+.lvj-btn:hover { background: var(--emerald); border-color: var(--emerald); }
+.lvj-btn.ghost { background: transparent; color: var(--ink); border-color: var(--rule); }
+.lvj-btn.ghost:hover { background: var(--ink); color: var(--ivory); border-color: var(--ink); }
+.lvj-btn.gold { background: transparent; border-color: var(--gold); color: var(--stone-4); }
+.lvj-btn.gold:hover { background: var(--gold); color: var(--ink); }
+.lvj-btn.sm { padding: 7px 12px; font-size: 10px; letter-spacing: .16em; }
+.lvj-btn.danger { background: transparent; color: var(--lvj-red); border-color: var(--lvj-red); }
+.lvj-btn:disabled { opacity: .55; cursor: not-allowed; }
+
+/* Cards */
+.lvj-card { background: var(--paper); border: 1px solid var(--rule); box-shadow: 0 1px 0 rgba(10,10,10,0.02), 0 2px 8px -4px rgba(10,10,10,0.06); }
+.lvj-card.ivory { background: var(--ivory); }
+.lvj-card.raised { background: var(--surface-raised); }
+.lvj-card-head { padding: 18px 22px; border-bottom: 1px solid var(--rule); display: flex; align-items: baseline; justify-content: space-between; }
+.lvj-card-head h3 { font-family: var(--lvj-serif); font-weight: 400; font-size: 20px; }
+.lvj-card-head .kicker { font-size: 10px; letter-spacing: .22em; text-transform: uppercase; color: var(--stone-3); }
+.lvj-card-body { padding: 22px; }
+
+/* Traffic-light badge */
+.lvj-tl { display: inline-flex; align-items: center; gap: 7px; padding: 3px 10px 3px 8px; border-radius: 2px; font-family: var(--lvj-sans); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; font-weight: 500; border: 1px solid currentColor; white-space: nowrap; }
+.lvj-tl .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 2px rgba(0,0,0,0.04); }
+.lvj-tl-red { color: var(--lvj-red); background: var(--lvj-red-bg); }
+.lvj-tl-amber { color: var(--lvj-amber); background: var(--lvj-amber-bg); }
+.lvj-tl-green { color: var(--lvj-green); background: var(--lvj-green-bg); }
+.lvj-tl-gray { color: var(--stone-3); background: var(--stone-1); }
+
+/* Table */
+.lvj-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.lvj-tbl thead th { text-align: left; font-family: var(--lvj-sans); font-size: 10px; letter-spacing: .22em; text-transform: uppercase; color: var(--stone-3); font-weight: 500; padding: 14px 18px; border-bottom: 1px solid var(--rule); background: var(--ivory); }
+.lvj-tbl tbody td { padding: var(--rowpad, 18px); border-bottom: 1px solid var(--rule-soft); vertical-align: middle; font-weight: 300; }
+.lvj-tbl tbody tr:hover td { background: var(--ivory); }
+.lvj-tbl .applicant { display: flex; align-items: center; gap: 12px; }
+.lvj-tbl .applicant .av { width: 32px; height: 32px; border-radius: 50%; background: var(--stone-1); color: var(--stone-4); display: flex; align-items: center; justify-content: center; font-family: var(--lvj-serif); font-size: 14px; flex: 0 0 32px; }
+.lvj-tbl .applicant .nm { font-size: 14px; }
+.lvj-tbl .applicant .em { font-size: 11px; color: var(--stone-3); font-family: var(--lvj-mono); }
+.lvj-tbl .case-title { font-family: var(--lvj-serif); font-size: 16px; font-weight: 400; }
+.lvj-tbl .case-id { font-family: var(--lvj-mono); font-size: 10.5px; color: var(--stone-3); margin-top: 3px; }
+.lvj-tbl .caps { font-family: var(--lvj-mono); font-size: 11px; color: var(--stone-4); }
+
+/* KPIs — asymmetric, hero metric dominates */
+.lvj-kpis { display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr; gap: 20px; margin-bottom: 32px; }
+.lvj-kpi { border: 1px solid var(--rule); padding: 24px 26px; background: var(--paper); position: relative; box-shadow: 0 1px 0 rgba(10,10,10,0.02), 0 2px 8px -4px rgba(10,10,10,0.06); }
+.lvj-kpi .lbl { font-size: 10px; letter-spacing: .22em; text-transform: uppercase; color: var(--stone-3); margin-bottom: 14px; display: flex; justify-content: space-between; font-family: var(--lvj-sans); }
+.lvj-kpi .val { font-family: var(--lvj-serif); font-weight: 300; font-size: 48px; line-height: 1; letter-spacing: -.01em; }
+.lvj-kpi .delta { font-family: var(--lvj-mono); font-size: 11px; color: var(--stone-4); margin-top: 10px; }
+.lvj-kpi .delta.up { color: var(--lvj-green); }
+.lvj-kpi .delta.down { color: var(--lvj-red); }
+.lvj-kpi.hero { background: var(--ink); color: var(--ivory); border-color: var(--ink); padding: 30px 34px; display: flex; flex-direction: column; justify-content: space-between; }
+.lvj-kpi.hero .lbl { color: rgba(244,239,230,.45); }
+.lvj-kpi.hero .val { font-size: 86px; letter-spacing: -.02em; margin-top: 10px; }
+.lvj-kpi.hero .delta { color: var(--gold-soft); margin-top: 14px; font-size: 12px; }
+
+/* Journey stepper (vertical) */
+.lvj-journey { padding: 6px 0; }
+.lvj-jstep { display: grid; grid-template-columns: 36px 1fr auto; gap: 16px; align-items: flex-start; padding: 16px 0; border-bottom: 1px solid var(--rule-soft); position: relative; }
+.lvj-jstep:last-child { border-bottom: none; }
+.lvj-jstep .node { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; border: 1px solid currentColor; flex: 0 0 28px; background: var(--paper); position: relative; z-index: 2; margin-top: 2px; }
+.lvj-jstep::after { content: ""; position: absolute; left: 17px; top: 36px; bottom: -10px; width: 1px; background: var(--rule); z-index: 1; }
+.lvj-jstep:last-child::after { display: none; }
+.lvj-jstep.done .node { background: var(--lvj-green-bg); color: var(--lvj-green); border-color: var(--lvj-green); }
+.lvj-jstep.cur .node { background: var(--lvj-amber-bg); color: var(--lvj-amber); border-color: var(--lvj-amber); }
+.lvj-jstep.upc .node { color: var(--stone-3); }
+.lvj-jstep h5 { font-family: var(--lvj-serif); font-size: 17px; font-weight: 400; margin-bottom: 3px; }
+.lvj-jstep p { font-size: 12px; color: var(--stone-4); line-height: 1.5; }
+.lvj-jstep .when { font-family: var(--lvj-mono); font-size: 10.5px; color: var(--stone-3); letter-spacing: .05em; text-align: right; }
+
+/* Form fields */
+.lvj-field { display: flex; flex-direction: column; gap: 8px; margin-bottom: 22px; }
+.lvj-field label { font-size: 10px; letter-spacing: .22em; text-transform: uppercase; color: var(--stone-3); }
+.lvj-field .hint { font-size: 11px; color: var(--stone-3); font-style: italic; font-family: var(--lvj-serif); }
+.lvj-field input[type=text], .lvj-field input[type=email], .lvj-field input[type=password],
+.lvj-field select, .lvj-field textarea {
+  font-family: var(--lvj-sans); font-weight: 300; font-size: 14px; color: var(--ink);
+  background: var(--paper); border: none; border-bottom: 1px solid var(--rule);
+  padding: 10px 2px; outline: none;
+}
+.lvj-field input:focus, .lvj-field select:focus, .lvj-field textarea:focus { border-bottom-color: var(--emerald); }
+.lvj-field textarea { min-height: 90px; resize: vertical; }
+
+/* Small neutral pill */
+.lvj-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--rule); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--stone-4); background: var(--paper); }
+.lvj-chip.emerald { color: var(--emerald); border-color: var(--emerald); }
+.lvj-chip.gold { color: var(--gold); border-color: var(--gold); }
+
+.lvj-hr-gold { height: 1px; background: var(--gold); width: 48px; margin: 14px 0; }
+.lvj-two { display: grid; grid-template-columns: 1.4fr 1fr; gap: 24px; }
+.lvj-three { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
