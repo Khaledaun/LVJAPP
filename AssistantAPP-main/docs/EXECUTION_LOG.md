@@ -456,6 +456,96 @@ recipe). Closes **B-001** (Sev-1) in `docs/BUGS.md`.
 - Migrate the other `getServerSession` call sites to `guardX` as
   their owning sprints touch them (not a Sprint 0.1 goal).
 
+### `pending` — Sprint 0.7: AR + RTL into design system + i18n foundation
+
+Per D-019 / D-015. Sprint 0.5 (multi-tenancy) is blocked on Postgres
+provisioning so the next executable item is 0.7. Lays the i18n
+foundation without bringing in next-intl yet (sandbox lacks
+node_modules); JSON layout is next-intl-compatible so the eventual
+swap is mechanical.
+
+- **`messages/en.json`** (new) — keys for the four landed lvj/*
+  components: `sidebar.*` (10 nav labels + 3 section labels),
+  `topbar.*` (search placeholder, breadcrumb, notifications,
+  messages), `mobile_tabbar.*` (4 tab labels + nav aria-label),
+  `status.*` (19 traffic-light statuses).
+- **`messages/ar.json`** (new) — Arabic translations of every EN key.
+  `_meta.review_status: 'draft'` — per D-015 these strings must be
+  reviewed by a native AR reviewer in the marketing-HITL chain
+  before client render. The infrastructure ships now; the review is
+  a Sprint 13 prereq.
+- **`messages/pt.json`** (new, stub) — key-presence stub so the i18n
+  loader doesn't crash when locale is forced. Population waits for
+  Portuguese counsel sign-off (v1.x per D-015).
+- **`lib/i18n.ts`** (new, server-safe) — `Locale` type
+  (`'en' | 'ar' | 'pt'`), `SUPPORTED_LOCALES`, `SHIPPED_LOCALES`
+  (EN + AR only — PT excluded from switcher), `DEFAULT_LOCALE`,
+  `LOCALE_COOKIE = 'lvj_locale'`, `isLocale`, `resolveLocale`
+  (precedence: pathname > cookie > Accept-Language > default), `t`
+  with EN fallback for missing keys.
+- **`lib/i18n-rtl.ts`** (new) — `isRtlLocale`, `getDir`,
+  `getHtmlLangAttr` (BCP-47: `en` / `ar` / `pt-PT`),
+  `getBodyFontVar` / `getDisplayFontVar` (returns the right CSS
+  variable per locale), `formatNumber` with `kind: 'identifier'`
+  escape so case IDs / dates stay Latin per SEF/AIMA convention.
+- **`app/layout.tsx`** — adds `IBM_Plex_Sans_Arabic` next/font import
+  exposed as `--font-lvj-arabic-body`. `Amiri` variable renamed
+  `--font-lvj-arabic` → `--font-lvj-arabic-display` to make the
+  D-015 display/body pairing explicit. `<html>` now reads
+  `lvj_locale` cookie via `cookies()` and emits dynamic `lang` /
+  `dir` / `data-locale` attributes.
+- **`app/globals.css`** — adds `--lvj-arabic-display` /
+  `--lvj-arabic-body` token vars; preserves `--lvj-arabic` as a
+  back-compat alias. New `[dir="rtl"]` selector swaps `--lvj-sans`
+  + `--lvj-serif` to the AR pairing. New
+  `[dir="rtl"] svg[data-rtl-mirror="true"]` rule provides
+  `transform: scaleX(-1)` for icons that opt in.
+- **`components/lvj/icons.tsx`** — `IconArrow` now carries
+  `data-rtl-mirror="true"`; brand icons / language-neutral icons
+  (Plus, etc.) opt out by omitting the attribute.
+- **`middleware.ts`** — wraps `withAuth` in a thin shell that runs
+  `applyLocaleCookie()` after the auth pass. Cookie set on every
+  matched route when the resolved locale differs from the existing
+  cookie value (so we don't `Set-Cookie` on every request). Matcher
+  expanded to include `/ar/:path*`, `/en/:path*`, `/pt/:path*` so
+  the cookie gets set on first hit even before the locale route
+  groups exist. `/api/*` skips the locale rewrite (JSON contract is
+  locale-neutral).
+- **`agents/intake/schema.ts`** + **`agents/drafting/schema.ts`** —
+  `locale` widened from `z.literal('en')` to
+  `z.enum(['en', 'ar', 'pt'])` with `.default('en')`. Per D-015 the
+  intake + drafting agents must accept AR payloads in v1.
+- **`__tests__/lib-i18n.test.ts`** — unit coverage for `isLocale`,
+  `resolveLocale` (path > cookie > accept-language precedence),
+  `t` (AR present, EN fallback, missing-key signal), and the
+  `i18n-rtl` helpers (dir, BCP-47, font vars, identifier vs prose
+  numerals). No DOM, no Next runtime.
+- **`e2e-tests/locale-smoke.spec.ts`** (S-010) — 4 cases: default →
+  EN/LTR; cookie `lvj_locale=ar` → AR/RTL; middleware sets cookie
+  from `/ar/dashboard`; `--font-lvj-arabic-body` and
+  `--font-lvj-arabic-display` resolve to non-empty values on the
+  rendered document.
+
+**Smoke battery status.**
+- S-001 (build + typecheck): **deferred** — same sandbox blocker.
+- S-002 (jest): **deferred**.
+- S-010 (locale smoke): **ships, deferred run** — needs live Next
+  server. Spec ready.
+
+**Deferred.**
+- next-intl install + migration of components/lvj/* to use `t()`
+  hooks (Sprint 0.7-bis or Sprint 1 follow-up). Today the
+  components still render hardcoded EN strings — the foundation is
+  in place but no component has been migrated to consume it. This
+  keeps the sprint scoped to "infrastructure", per
+  `docs/EXECUTION_PLAN.md` §10.4 deliverable list.
+- Native Arabic reviewer sign-off for `messages/ar.json` (D-015 —
+  organisational gap).
+- Locale switcher UI in topbar (small follow-up; the cookie
+  primitive is in place).
+- Per-locale URL routing groups under `app/(locale)/` (a bigger
+  refactor; not in 0.7 scope).
+
 ---
 
 ## Rolling open items

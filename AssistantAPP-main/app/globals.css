@@ -121,7 +121,30 @@
   --lvj-serif:var(--font-lvj-serif),"Cormorant Garamond","EB Garamond",Garamond,serif;
   --lvj-sans:var(--font-lvj-sans),"Inter",-apple-system,BlinkMacSystemFont,sans-serif;
   --lvj-mono:var(--font-lvj-mono),"JetBrains Mono",ui-monospace,monospace;
-  --lvj-arabic:var(--font-lvj-arabic),"Amiri","Scheherazade New",serif;
+  /* D-015 — Arabic typography pairing.
+     Display (≥18px): Amiri (Frank Ruhl Libre fallback).
+     Body: IBM Plex Sans Arabic (Tajawal fallback).
+     Mono: unchanged JetBrains Mono — case IDs / dates remain Latin per
+     SEF/AIMA convention. */
+  --lvj-arabic-display:var(--font-lvj-arabic-display),"Amiri","Frank Ruhl Libre","Scheherazade New",serif;
+  --lvj-arabic-body:var(--font-lvj-arabic-body),"IBM Plex Sans Arabic","Tajawal",sans-serif;
+  /* Back-compat alias — older code referencing --lvj-arabic gets the display
+     stack. New code should use --lvj-arabic-display or --lvj-arabic-body. */
+  --lvj-arabic:var(--lvj-arabic-display);
+}
+
+/* RTL swap — when <html dir="rtl"> the body and serif tracks switch to the
+   Arabic pairing. JetBrains Mono stays Latin per the comment above. */
+[dir="rtl"] {
+  --lvj-sans: var(--lvj-arabic-body);
+  --lvj-serif: var(--lvj-arabic-display);
+}
+
+/* D-015 — directional iconography mirrors under RTL. Brand marks and
+   language-neutral icons (caret-down, plus, search) MUST omit the
+   `data-rtl-mirror` attribute so they stay un-flipped. */
+[dir="rtl"] svg[data-rtl-mirror="true"] {
+  transform: scaleX(-1);
 }
 
 /* ────────────────────────────────────────────────────────────────
