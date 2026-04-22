@@ -1,27 +1,63 @@
+import { dispatch } from './events'
+
+/**
+ * Multi-channel notification dispatcher.
+ *
+ * Architecture: the canonical entry point `notify()` emits a
+ * `notification.dispatch` event on the bus. Channel adapters subscribe via
+ * lib/events.ts#on() and run in parallel via Promise.allSettled (Golden Rule #5).
+ *
+ * Legacy exports (sendIntakeNotification / mockIntakeNotification /
+ * sendStatusChangeNotification / mockStatusChangeNotification) are preserved
+ * unchanged so existing tests and API routes continue to work while channel
+ * adapters are wired up in later sprints.
+ */
+
+export type Channel = 'EMAIL' | 'SMS' | 'WHATSAPP' | 'PUSH' | 'IN_APP'
+
+export interface NotificationPayload {
+  channels: Channel[]
+  to: { email?: string; phone?: string; userId?: string }
+  subject?: string
+  body: string
+  html?: string
+  caseId?: string
+  userId?: string
+}
+
+/** Canonical entry point — emit a multi-channel notification onto the event bus. */
+export async function notify(p: NotificationPayload) {
+  return dispatch('notification.dispatch', p, { caseId: p.caseId, userId: p.userId })
+}
+
+// ────────────────────────────────────────────────────────────────
+// Legacy API (preserved verbatim for backwards compatibility)
+// ────────────────────────────────────────────────────────────────
+
 interface ServiceType {
-  id: string;
-  title: string;
-  description: string | null;
+  id: string
+  title: string
+  description: string | null
 }
 
 interface CaseData {
-  id: string;
-  title: string;
-  applicantName: string;
-  applicantEmail: string;
-  serviceType?: ServiceType | null;
+  id: string
+  title: string
+  applicantName: string
+  applicantEmail: string
+  serviceType?: ServiceType | null
 }
 
 interface StatusChangeData {
-  id: string;
-  title: string;
-  applicantName: string;
-  applicantEmail: string;
-  previousStatus: string;
-  newStatus: string;
-  changedBy?: string;
-  changedAt: Date;
-  serviceType?: ServiceType | null;
+  id: string
+  title: string
+  applicantName: string
+  applicantEmail: string
+  previousStatus: string
+  newStatus: string
+  changedBy?: string
+  changedAt: Date
+  serviceType?: ServiceType | null
 }
 
 /**
@@ -29,7 +65,7 @@ interface StatusChangeData {
  */
 export async function sendIntakeNotification(caseData: CaseData): Promise<boolean> {
   try {
-    const serviceTypeInfo = caseData.serviceType 
+    const serviceTypeInfo = caseData.serviceType
       ? `<strong>Service Type:</strong> ${caseData.serviceType.title}<br>
          ${caseData.serviceType.description ? `<em>${caseData.serviceType.description}</em><br>` : ''}`
       : '<strong>Service Type:</strong> Not specified<br>';
@@ -37,7 +73,7 @@ export async function sendIntakeNotification(caseData: CaseData): Promise<boolea
     const html = `
       <h2>New Case Intake Notification</h2>
       <p>A new case has been created and requires attention from the legal team.</p>
-      
+
       <h3>Case Details:</h3>
       <p>
         <strong>Case Title:</strong> ${caseData.title}<br>
@@ -45,16 +81,16 @@ export async function sendIntakeNotification(caseData: CaseData): Promise<boolea
         <strong>Applicant Email:</strong> ${caseData.applicantEmail}<br>
         ${serviceTypeInfo}
       </p>
-      
+
       <p>
         <strong>Case ID:</strong> ${caseData.id}<br>
         <strong>Created:</strong> ${new Date().toLocaleString()}
       </p>
-      
+
       <p>Please review this case and assign appropriate legal resources as needed.</p>
-      
+
       <p>
-        <a href="${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/cases/${caseData.id}" 
+        <a href="${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/cases/${caseData.id}"
            style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">
           View Case
         </a>
@@ -66,7 +102,7 @@ export async function sendIntakeNotification(caseData: CaseData): Promise<boolea
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'notify',
-        to: ['legal@lvj.com', 'admin@lvj.com'], // Configure these emails in production
+        to: ['legal@lvj.com', 'admin@lvj.com'],
         subject: `New Case Intake: ${caseData.title}`,
         html
       })
@@ -83,7 +119,7 @@ export async function sendIntakeNotification(caseData: CaseData): Promise<boolea
  * Mock notification for development when SKIP_DB=1
  */
 export function mockIntakeNotification(caseData: CaseData): boolean {
-  const serviceTypeInfo = caseData.serviceType 
+  const serviceTypeInfo = caseData.serviceType
     ? `Service Type: ${caseData.serviceType.title}${caseData.serviceType.description ? ` (${caseData.serviceType.description})` : ''}`
     : 'Service Type: Not specified';
 
@@ -102,7 +138,7 @@ Case Details:
 
 Please review this case and assign appropriate legal resources as needed.
   `);
-  
+
   return true;
 }
 
@@ -111,7 +147,7 @@ Please review this case and assign appropriate legal resources as needed.
  */
 export async function sendStatusChangeNotification(statusData: StatusChangeData): Promise<boolean> {
   try {
-    const serviceTypeInfo = statusData.serviceType 
+    const serviceTypeInfo = statusData.serviceType
       ? `<strong>Service Type:</strong> ${statusData.serviceType.title}<br>
          ${statusData.serviceType.description ? `<em>${statusData.serviceType.description}</em><br>` : ''}`
       : '<strong>Service Type:</strong> Not specified<br>';
@@ -119,7 +155,7 @@ export async function sendStatusChangeNotification(statusData: StatusChangeData)
     const html = `
       <h2>Case Status Change Notification</h2>
       <p>A case status has been updated and requires your attention.</p>
-      
+
       <h3>Case Details:</h3>
       <p>
         <strong>Case Title:</strong> ${statusData.title}<br>
@@ -127,7 +163,7 @@ export async function sendStatusChangeNotification(statusData: StatusChangeData)
         <strong>Applicant Email:</strong> ${statusData.applicantEmail}<br>
         ${serviceTypeInfo}
       </p>
-      
+
       <h3>Status Change Details:</h3>
       <p>
         <strong>Previous Status:</strong> ${statusData.previousStatus}<br>
@@ -135,15 +171,15 @@ export async function sendStatusChangeNotification(statusData: StatusChangeData)
         <strong>Changed By:</strong> ${statusData.changedBy || 'System'}<br>
         <strong>Changed At:</strong> ${statusData.changedAt.toLocaleString()}
       </p>
-      
+
       <p>
         <strong>Case ID:</strong> ${statusData.id}
       </p>
-      
+
       <p>Please review this status change and take any necessary actions.</p>
-      
+
       <p>
-        <a href="${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/cases/${statusData.id}" 
+        <a href="${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/cases/${statusData.id}"
            style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">
           View Case
         </a>
@@ -155,7 +191,7 @@ export async function sendStatusChangeNotification(statusData: StatusChangeData)
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'notify',
-        to: ['admin@lvj.com'], // Configure admin emails in production
+        to: ['admin@lvj.com'],
         subject: `Case Status Change: ${statusData.title} → ${statusData.newStatus}`,
         html
       })
@@ -172,7 +208,7 @@ export async function sendStatusChangeNotification(statusData: StatusChangeData)
  * Mock status change notification for development when SKIP_DB=1
  */
 export function mockStatusChangeNotification(statusData: StatusChangeData): boolean {
-  const serviceTypeInfo = statusData.serviceType 
+  const serviceTypeInfo = statusData.serviceType
     ? `Service Type: ${statusData.serviceType.title}${statusData.serviceType.description ? ` (${statusData.serviceType.description})` : ''}`
     : 'Service Type: Not specified';
 
@@ -196,6 +232,6 @@ Status Change:
 
 Please review this status change and take any necessary actions.
   `);
-  
+
   return true;
 }

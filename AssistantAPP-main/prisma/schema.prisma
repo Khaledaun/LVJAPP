@@ -9,23 +9,36 @@ generator client {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  name          String?
-  role          Role      @default(CLIENT)
-  password      String?
-  casesAsClient Case[]    @relation("CaseClient")
-  casesAsManager Case[]   @relation("CaseManager")
-  casesAsLawyer  Case[]   @relation("Lawyer")
+  id               String    @id @default(cuid())
+  email            String    @unique
+  name             String?
+  role             Role      @default(CLIENT)
+  password         String?
+  officeId         String?
+  office           Office?   @relation(fields: [officeId], references: [id])
+  casesAsClient    Case[]    @relation("CaseClient")
+  casesAsManager   Case[]    @relation("CaseManager")
+  casesAsLawyer    Case[]    @relation("Lawyer")
+  serviceTypes     ServiceType[] @relation("ServiceTypeCounsel")
+  auditLogs        AuditLog[]
+  notificationLogs NotificationLog[]
+  voiceCallLogs    VoiceCallLog[]
 }
 
 model ServiceType {
-  id          String   @id @default(cuid())
-  title       String   @unique
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  cases       Case[]
+  id              String   @id @default(cuid())
+  title           String   @unique
+  description     String?
+  code            String?  @unique
+  category        String?
+  typicalTimeline String?
+  baseFee         Float?
+  governmentFee   Float?   @default(0)
+  requiredForms   String[] @default([])
+  counselPool     User[]   @relation("ServiceTypeCounsel")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  cases           Case[]
 }
 
 model Case {
@@ -50,12 +63,132 @@ model Case {
   lawyer               User?     @relation("Lawyer", fields: [lawyerId], references: [id])
   serviceTypeId        String?
   serviceType          ServiceType? @relation(fields: [serviceTypeId], references: [id])
+  officeId             String?
+  office               Office?   @relation(fields: [officeId], references: [id])
+  partnerId            String?
+  partner              Partner?  @relation("PartnerCase", fields: [partnerId], references: [id])
   documents            Document[]
   payments             Payment[]
   timelineEvents       TimelineEvent[]
   internalMessages     Message[]
   externalPartners     ExternalPartner[]
   externalComms        ExternalCommunication[]
+  outcome              CaseOutcome?
+  auditLogs            AuditLog[]
+  notificationLogs     NotificationLog[]
+  voiceCallLogs        VoiceCallLog[]
+}
+
+// Multi-office support (Architecture Decision #10 — officeId on staff-facing models)
+model Office {
+  id        String   @id @default(cuid())
+  name      String
+  city      String
+  country   String
+  timezone  String
+  region    String   // MENA | Americas | Europe
+  flag      String?
+  isHQ      Boolean  @default(false)
+  cases     Case[]
+  members   User[]
+  createdAt DateTime @default(now())
+}
+
+// Partner network (distinct from existing per-case ExternalPartner)
+model Partner {
+  id             String      @id @default(cuid())
+  name           String
+  type           PartnerType
+  contactEmail   String
+  contactPhone   String?
+  commissionPct  Float       @default(0)
+  totalReferrals Int         @default(0)
+  totalRevenue   Float       @default(0)
+  referralCode   String      @unique @default(cuid())
+  cases          Case[]      @relation("PartnerCase")
+  leads          EligibilityLead[]
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+}
+
+// Outcome predictor data collection
+model CaseOutcome {
+  id                    String        @id @default(cuid())
+  caseId                String        @unique
+  case                  Case          @relation(fields: [caseId], references: [id])
+  serviceCode           String
+  officerLocation       String?
+  filingDate            DateTime?
+  adjudicationDate      DateTime?
+  outcome               OutcomeResult
+  rfeIssued             Boolean       @default(false)
+  rfeResponseDays       Int?
+  approvalOddsPredicted Float?
+  approvalOddsActual    Float?
+  createdAt             DateTime      @default(now())
+}
+
+// Eligibility quiz leads
+model EligibilityLead {
+  id           String     @id @default(cuid())
+  email        String
+  phone        String?
+  name         String?
+  answers      Json
+  score        Float
+  visaCategory String?
+  status       LeadStatus @default(NEW)
+  caseId       String?
+  source       String?
+  partnerId    String?
+  partner      Partner?   @relation(fields: [partnerId], references: [id])
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+// Multi-channel notification feed
+model NotificationLog {
+  id         String       @id @default(cuid())
+  caseId     String?
+  case       Case?        @relation(fields: [caseId], references: [id])
+  userId     String
+  user       User         @relation(fields: [userId], references: [id])
+  channel    NotifChannel
+  subject    String?
+  body       String       @db.Text
+  status     NotifStatus  @default(QUEUED)
+  externalId String?
+  readAt     DateTime?
+  createdAt  DateTime     @default(now())
+}
+
+// Voice call log (ElevenLabs + Twilio pipeline)
+model VoiceCallLog {
+  id          String   @id @default(cuid())
+  caseId      String?
+  case        Case?    @relation(fields: [caseId], references: [id])
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  twilioSid   String?
+  direction   String   // OUTBOUND | INBOUND
+  status      String   // queued | ringing | in-progress | completed | failed
+  duration    Int?
+  audioGcsUrl String?
+  transcript  String?  @db.Text
+  locale      String   @default("en")
+  createdAt   DateTime @default(now())
+}
+
+// Audit log (referenced by lib/audit.ts — previously missing from schema)
+model AuditLog {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  action    String
+  caseId    String?
+  case      Case?    @relation(fields: [caseId], references: [id])
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  diff      Json?
 }
 
 model PartnerRole {
@@ -124,6 +257,49 @@ enum Role {
   CLIENT
   STAFF
   ADMIN
+  LVJ_ADMIN
+  LVJ_TEAM
+  LVJ_MARKETING
+  LAWYER_ADMIN
+  LAWYER_ASSOCIATE
+  LAWYER_ASSISTANT
+}
+
+enum PartnerType {
+  REFERRAL_AGENCY
+  RC_OPERATOR
+  LEGAL_AID
+  CO_COUNSEL
+}
+
+enum OutcomeResult {
+  APPROVED
+  DENIED
+  WITHDRAWN
+  PENDING
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  CONVERTED
+  ARCHIVED
+}
+
+enum NotifChannel {
+  EMAIL
+  SMS
+  WHATSAPP
+  PUSH
+  IN_APP
+}
+
+enum NotifStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  FAILED
+  READ
 }
 
 enum CaseStatus {
