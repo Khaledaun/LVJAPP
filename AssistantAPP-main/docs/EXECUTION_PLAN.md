@@ -1132,8 +1132,9 @@ direction.
 - [ ] **`scripts/audit-tenant.ts`** — A-003 script. Block Sprint 0.5
       merge.
 - [x] **`scripts/audit-jurisdiction.ts`** — A-004 (informational).
-- [ ] **`scripts/audit-prisma.ts`** — C-004 enforcement (additive
-      only).
+- [x] **`scripts/audit-prisma.ts`** — C-004 additive-only schema
+      audit (model_removed, field_removed, type_narrowed,
+      required_tightened, array_lost detectors).
 - [x] **`scripts/lint-docs.ts`** — A-010 (4 rules: source-diff →
       log, contract-doc version bump, log append-only, DECISIONS
       immutable body).

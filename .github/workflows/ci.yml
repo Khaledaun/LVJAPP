@@ -66,6 +66,11 @@ jobs:
         # to itself (chicken/egg).
         if: github.event_name == 'pull_request'
 
+      - name: C-004 · prisma additive-only audit
+        working-directory: .  # script path is cwd-aware (uses AssistantAPP-main/prisma/...)
+        run: cd AssistantAPP-main && npm run audit:prisma -- --base origin/main --head HEAD
+        if: github.event_name == 'pull_request'
+
       - name: Type check
         run: npx tsc --noEmit
 

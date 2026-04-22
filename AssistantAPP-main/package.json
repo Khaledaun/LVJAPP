@@ -27,6 +27,8 @@
     "audit:jurisdiction:json": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/audit-jurisdiction.ts --json",
     "audit:docs": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/lint-docs.ts",
     "audit:docs:json": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/lint-docs.ts --json",
+    "audit:prisma": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/audit-prisma.ts",
+    "audit:prisma:json": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/audit-prisma.ts --json",
     "smoke:auth": "playwright test e2e-tests/auth-smoke.spec.ts",
     "smoke:locale": "playwright test e2e-tests/locale-smoke.spec.ts",
     "smoke:webflow": "playwright test e2e-tests/webflow-webhook-smoke.spec.ts",

@@ -771,6 +771,32 @@ enforces the banned-phrase / UPL / PII rules regardless of
 maturity — this unblocks development while the lawyer review
 proceeds.
 
+### `pending` — Tooling: scripts/audit-prisma.ts (C-004)
+
+Closes the C-004 enforcement gap from `docs/EXECUTION_PLAN.md` §12.1.
+Static schema diff against a base ref; detects every class of
+breaking change to `prisma/schema.prisma` that Golden Rule #4
+forbids.
+
+- **`scripts/audit-prisma.ts`** (new) — parses `prisma/schema.prisma`
+  from base and head refs (default `origin/main..HEAD`), extracts
+  `model.field → { type, optional, array }` signatures, reports
+  violations: `model_removed`, `field_removed`, `type_narrowed`,
+  `required_tightened` (optional→required), `array_lost`. Widenings
+  (required→optional, scalar→array, new model / field / enum value)
+  are silently accepted — the whole point of the additive-only rule.
+  `--json` for CI consumption; exit 1 on violation.
+- **`package.json`** — `audit:prisma` + `audit:prisma:json` scripts.
+- **`.github/workflows/ci.yml`** — adds the audit to the per-PR
+  pipeline right after A-010 (doc discipline). Only enforced on
+  `pull_request` events.
+- **`docs/EXECUTION_PLAN.md` §12.1** — one more item ticked.
+
+Two §12.1 items remain open: `scripts/audit-tenant.ts` (Sprint 0.5
+prerequisite — can be drafted now but has no `tenantId` fields to
+audit until the migration lands) and per-smoke scaffolding under
+`scripts/smoke/` (lands incrementally per sprint).
+
 ---
 
 ## Rolling open items
