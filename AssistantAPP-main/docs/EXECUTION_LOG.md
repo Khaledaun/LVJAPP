@@ -603,6 +603,34 @@ so Webflow form submissions can hit the platform now; the actual
 - `Stripe`, `Kaspo` webhook receivers — Sprint 8.5 / Sprint 5
   respectively, following the same C-009 pattern.
 
+### `pending` — Tooling: CI workflow, npm scripts, .claude settings
+
+Closes three entries from `docs/EXECUTION_PLAN.md` §12.1 (tooling
+gaps). No source code changes; wires what Sprints 0.1 / 0.7 / 0.7-bis
+shipped so it actually runs in CI and in local dev.
+
+- **`.github/workflows/ci.yml`** (new) — per-PR job
+  `audit-and-test`: checkout, Node 20 + npm cache, `npm ci`,
+  `npm run audit:auth` (A-002), `tsc --noEmit`, `npm run lint`,
+  `npm test`, `npm run build`, Playwright chromium install, `npm run
+  smoke` (runs auth / locale / webflow specs). `SKIP_DB=1` +
+  `SKIP_AUTH=1` per `docs/EXECUTION_PLAN.md` §9.5 sandbox-without-DB
+  discipline; a DB-backed workflow follows Sprint 0.5. Concurrency
+  group cancels in-flight runs on new pushes. 20-min timeout ceiling.
+- **`package.json`** — new scripts: `audit:auth`, `audit:auth:json`,
+  `smoke:auth`, `smoke:locale`, `smoke:webflow`, `smoke`
+  (chained audit + Playwright run).
+- **`.claude/settings.json`** (new, repo-scoped) — permission
+  allowlist for routine read-only Bash ops (git status/diff/log, ls,
+  grep, find, wc, jq, lint, audit:auth, smoke runs) so future
+  sessions don't re-prompt. `ask` list carries anything that writes
+  to git or the filesystem non-reversibly (push, commit, reset,
+  npm install, prisma migrate, rm). `deny` list carries force-push,
+  `rm -rf /`, `curl`, `wget`. Env baseline matches the sandbox
+  (SKIP_DB=1, SKIP_AUTH=1).
+
+No tests / migrations / runtime behaviour changes.
+
 ---
 
 ## Rolling open items

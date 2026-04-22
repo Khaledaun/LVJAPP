@@ -1128,8 +1128,7 @@ direction.
 
 ### 12.1 Tooling gaps (Sprint 0.1 hard unblocks)
 
-- [ ] **`scripts/audit-auth.ts`** — the A-002 script. Currently
-      manual. Block Sprint 0.1 merge.
+- [x] **`scripts/audit-auth.ts`** — A-002 (Sprint 0.1).
 - [ ] **`scripts/audit-tenant.ts`** — A-003 script. Block Sprint 0.5
       merge.
 - [ ] **`scripts/audit-jurisdiction.ts`** — A-004 script.
@@ -1141,10 +1140,9 @@ direction.
       landed incrementally per sprint.
 - [ ] **`scripts/pii-scrub.ts`** — centralised; currently
       per-callsite.
-- [ ] **`.github/workflows/ci.yml`** — wire per-PR audits + smoke
-      battery. No CI workflow exists today.
-- [ ] **`.claude/settings.json`** — project settings for Claude Code
-      (permissions, hooks). Not required but would cut prompt noise.
+- [x] **`.github/workflows/ci.yml`** — per-PR audit + smoke battery.
+- [x] **`.claude/settings.json`** — project settings for Claude Code
+      (permissions + env baseline).
 - [ ] **`vercel.json` cron block** — declare all audit + settlement
       crons.
 
