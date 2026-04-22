@@ -1131,8 +1131,7 @@ direction.
 - [x] **`scripts/audit-auth.ts`** — A-002 (Sprint 0.1).
 - [ ] **`scripts/audit-tenant.ts`** — A-003 script. Block Sprint 0.5
       merge.
-- [ ] **`scripts/audit-jurisdiction.ts`** — A-004 script.
-      Non-blocking; informational.
+- [x] **`scripts/audit-jurisdiction.ts`** — A-004 (informational).
 - [ ] **`scripts/audit-prisma.ts`** — C-004 enforcement (additive
       only).
 - [ ] **`scripts/lint-docs.ts`** — A-010 enforcement.
@@ -1143,8 +1142,8 @@ direction.
 - [x] **`.github/workflows/ci.yml`** — per-PR audit + smoke battery.
 - [x] **`.claude/settings.json`** — project settings for Claude Code
       (permissions + env baseline).
-- [ ] **`vercel.json` cron block** — declare all audit + settlement
-      crons.
+- [x] **`vercel.json` cron block** — declares 11 crons (7 audits + 4
+      operational). Handlers land per sprint.
 
 ### 12.2 Infrastructure gaps
 

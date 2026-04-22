@@ -631,6 +631,36 @@ shipped so it actually runs in CI and in local dev.
 
 No tests / migrations / runtime behaviour changes.
 
+### `pending` — Tooling: A-004 jurisdiction audit + vercel.json cron block
+
+Closes two more entries from `docs/EXECUTION_PLAN.md` §12.1.
+
+- **`scripts/audit-jurisdiction.ts`** (new) — A-004. Walks the repo,
+  pattern-matches the D-006 legacy US-immigration term list (USCIS,
+  RFE, EB5, H1B, N400, N-600, I-9, I-130, IOLTA, DS-160, ABA Model
+  Rule 1.6, ABA Model Rule 5.3) with word-boundary guards. Per-term
+  hit count + per-file listing. Allowlists the doc traceability
+  surfaces (`Claude.md`, `docs/PRD.md`, `docs/DECISIONS.md`,
+  `docs/EXECUTION_LOG.md`, `docs/EXECUTION_PLAN.md`,
+  `docs/AGENT_OS.md`, `docs/prompts/*`, legacy reports). Informational
+  by default (exit 0); `--strict src-only` exits non-zero if any
+  hit appears outside the allowlist. `--json` machine output.
+- **`package.json`** — `audit:jurisdiction` + `audit:jurisdiction:json`
+  scripts.
+- **`vercel.json`** (new) — 11 cron declarations matching
+  `docs/EXECUTION_PLAN.md` §2.5 + Claude.md v4.0 §Project Structure:
+  `audit-auth-weekly` (Sun 03:00), `audit-tenant-nightly` (03:15),
+  `audit-jurisdiction-weekly` (Sun 03:30), `audit-kb-staleness-weekly`
+  (Mon 03:00), `audit-cost-daily` (00:05), `audit-deps-weekly`
+  (Sun 04:00), `audit-doc-discipline-weekly` (Sun 04:30),
+  `deadline-alert` (00:05), `marketing-hitl-escalate` (hourly),
+  `commission-settle` (1st of month 06:00),
+  `analytics-rollup` (00:10). Handlers land per their owning sprint.
+- **`docs/EXECUTION_PLAN.md` §12.1** — three more items ticked.
+
+No runtime behaviour changes; the scripts + cron schedules are
+declaration-only until their handlers exist.
+
 ---
 
 ## Rolling open items

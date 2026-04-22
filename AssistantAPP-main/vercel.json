@@ -1,0 +1,49 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/cron/audit-auth-weekly",
+      "schedule": "0 3 * * 0"
+    },
+    {
+      "path": "/api/cron/audit-tenant-nightly",
+      "schedule": "15 3 * * *"
+    },
+    {
+      "path": "/api/cron/audit-jurisdiction-weekly",
+      "schedule": "30 3 * * 0"
+    },
+    {
+      "path": "/api/cron/audit-kb-staleness-weekly",
+      "schedule": "0 3 * * 1"
+    },
+    {
+      "path": "/api/cron/audit-cost-daily",
+      "schedule": "5 0 * * *"
+    },
+    {
+      "path": "/api/cron/audit-deps-weekly",
+      "schedule": "0 4 * * 0"
+    },
+    {
+      "path": "/api/cron/audit-doc-discipline-weekly",
+      "schedule": "30 4 * * 0"
+    },
+    {
+      "path": "/api/cron/deadline-alert",
+      "schedule": "5 0 * * *"
+    },
+    {
+      "path": "/api/cron/marketing-hitl-escalate",
+      "schedule": "0 */1 * * *"
+    },
+    {
+      "path": "/api/cron/commission-settle",
+      "schedule": "0 6 1 * *"
+    },
+    {
+      "path": "/api/cron/analytics-rollup",
+      "schedule": "10 0 * * *"
+    }
+  ]
+}
