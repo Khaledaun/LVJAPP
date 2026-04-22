@@ -1,0 +1,239 @@
+# LVJ AssistantApp — Decisions Log (D-007 → D-019)
+
+> Drop these entries into `docs/DECISIONS.md` in the order shown.
+> Each entry follows the existing `D-NNN` format. Ratified in chat
+> on April 22, 2026; reflected in PRD v0.3.
+
+-----
+
+## D-007 — Commission rate: flat 25%
+
+**Date:** 2026-04-22
+**Status:** Active
+**Supersedes:** Earlier 50% (legal) / 30% (other) proposal — never landed.
+
+LVJ Platform takes a flat **25% commission of fees** across **all service categories** (lawyer, realtor, accountant/tax, fund manager, translator, apostille, bank facilitator, relocation/concierge, property management, hospitality, and any future categories Platform Admin adds).
+
+Rationale: simpler to explain to providers; reduces contract negotiation per provider; one rate to enforce in `lib/commission.ts`. Trade-off accepted: leaves money on the table for high-margin legal work, but the simplicity is worth it for v1.
+
+Changes if revisited: would require versioning commission rate per `ServiceProvider` row + per category, plus retroactive ledger handling. Not free to revisit.
+
+-----
+
+## D-008 — Outcome predictor data thresholds
+
+**Date:** 2026-04-22
+**Status:** Active
+
+The outcome predictor (`Sprint 11`) is gated by minimum data thresholds before being exposed:
+
+- **Staff-internal use** (Tenant Lawyer, Tenant Admin): predictions shown when `CaseOutcome` count ≥ **50** for that (`destinationJurisdiction`, `serviceTypeCode`) pair, with confidence interval always displayed.
+- **Client-facing in portal**: predictions shown when count ≥ **200** AND confidence interval ≤ ±15%. Below threshold: show “Insufficient data — too few comparable cases” instead of a number.
+
+Rationale: under-thresholded predictions either lead lawyers astray or expose clients to false expectations. Misrepresenting odds in legal-adjacent contexts has UPL implications.
+
+Implementation: `lib/predictor.ts` checks thresholds before returning numeric output; UI shows the explanatory string otherwise.
+
+-----
+
+## D-009 — Free tier boundary
+
+**Date:** 2026-04-22
+**Status:** Active
+
+**First 5 providers free for 12 months.** Slot allocation at Platform Admin discretion, recorded in the tenant/provider contract row.
+
+After the 12-month free period: provider transitions to **per-seat / package SaaS subscription** (pricing TBD by founder pre-Sprint 15) **plus** the 25% commission per `D-007`. Subscription does **not** displace commission.
+
+Rationale: loss leader to seed the platform with a credible provider mix across categories; subscription introduces predictable MRR; commission keeps incentives aligned with bringing real value (LVJ-originated revenue).
+
+Tracking: `Tenant.freeTierExpiresAt` + `ServiceProvider.freeTierExpiresAt` columns. Cron in Sprint 15 sweeps expiring tiers and triggers the subscription onboarding flow 30 days prior.
+
+-----
+
+## D-010 — Marketing-HITL SLA: 24h
+
+**Date:** 2026-04-22
+**Status:** Active
+
+All marketing content (blog drafts, social posts, public Service Provider Directory listings, AI-generated visa-explainer updates) requires marketing-HITL approval within **24 hours** of being placed in the queue at `/admin/marketing-approvals`.
+
+Rationale: marketing has a different cadence than legal (slower, less time-critical, but volume is higher). 24h matches industry norms for content review while keeping the publishing pipeline fast enough to ship.
+
+Implementation: `HITLApproval.tier = 'MARKETING'`; SLA breach surfaces on Platform Marketing dashboard.
+
+-----
+
+## D-011 — Webflow staging strategy
+
+**Date:** 2026-04-22
+**Status:** Active
+
+Marketing agents publish drafts using **Webflow’s built-in unpublished/draft state on the live site**. No separate staging Webflow site.
+
+Rationale: separate staging site doubles Webflow cost, requires sync infra, and adds complexity. Marketing-HITL (D-010) is the safety net — content can’t go live without human approval anyway.
+
+Implementation: `lib/webflow.ts` `publishDraft()` uses Webflow’s draft mode; `approvePublish()` calls Webflow’s publish endpoint after marketing-HITL approval.
+
+-----
+
+## D-012 — LLM cost caps
+
+**Date:** 2026-04-22
+**Status:** Active
+
+|Scope             |Soft cap (warn + pause non-critical)|Hard cap (pause all)|
+|------------------|------------------------------------|--------------------|
+|Per tenant        |$50/day                             |$100/day            |
+|Platform marketing|$30/day                             |$75/day             |
+|Platform-wide     |—                                   |**$200/day**        |
+
+Reset: UTC midnight. Override: Platform Admin only, audit-logged with reason.
+
+Rationale: per-tenant cap protects tenants from runaway agent loops on their data; platform marketing cap is owned by LVJ growth budget and isolated from tenant budgets; platform-wide hard cap catches systemic failures (e.g., infinite loop across many tenants).
+
+Implementation: `services/cost-guard.ts` reads `AutomationLog.costUsd` rolling 24h sum per scope; emits `cost.threshold.warn` and `cost.threshold.pause` events.
+
+-----
+
+## D-013 — HITL escalation tiers
+
+**Date:** 2026-04-22
+**Status:** Active
+
+|Tier     |SLA                                   |Triggers                                                                                        |
+|---------|--------------------------------------|------------------------------------------------------------------------------------------------|
+|Standard |4h                                    |General advice review, routine outbound                                                         |
+|Urgent   |1h                                    |`escalation.urgent_deadline` (visa expires <72h, hearing within 7d)                             |
+|Critical |15min business hours / paged off-hours|`escalation.adverse_notice` (denial received), `escalation.criminal_history` (intake disclosure)|
+|Marketing|24h                                   |All marketing content (per D-010)                                                               |
+
+Off-hours pager: critical-tier only. Pager rotation set per tenant.
+
+Rationale: not all HITL queue items have the same time sensitivity; tiering prevents Sev-1 events from sitting behind routine drafts.
+
+Implementation: `HITLApproval.tier` enum; `services/orchestrator.ts` sets tier based on `escalation.*` event; `/admin/approvals` UI sorts by tier.
+
+-----
+
+## D-014 — Quiet hours: per-provider availability
+
+**Date:** 2026-04-22
+**Status:** Active
+
+Each Service Provider sets their own availability windows (days of week + start/end times in their local timezone). The orchestrator suppresses non-pager outbound to clients managed by that provider during their off-hours.
+
+If a provider has not set availability, falls back to platform default: **21:00–08:00 client-local quiet hours**.
+
+Rationale: providers have very different working schedules (Portuguese realtor 9–18, MENA-based hospitality op 14–02). One global rule is wrong; per-provider is right.
+
+Implementation: `ServiceProvider.availabilityWindows` JSON field; `lib/scheduling.ts` checks before dispatch; pager-tier (D-013 critical) ignores quiet hours.
+
+-----
+
+## D-015 — Arabic is first-class for v1
+
+**Date:** 2026-04-22
+**Status:** Active
+**Supersedes:** Earlier “AR structure reserved, EN only for v1” stance from `Claude.md` v3.2 §Golden Rule #6 commentary.
+
+The product ships v1 with Arabic as a fully equal locale to English. No “EN-first, AR-later” workaround.
+
+Concretely:
+
+1. Full RTL layout in app + portal (proper bidi handling, mirrored navigation, RTL-aware shadcn/ui components).
+1. Arabic typography pairing: **Amiri** for display (≥18px, pairs with Cormorant Garamond), **IBM Plex Sans Arabic** for body (pairs with Inter), Latin **JetBrains Mono** for IDs (case IDs and dates remain Latin script per SEF/AIMA convention).
+1. AI Counsel chat fluent in AR (Claude 3.7 / GPT-5).
+1. AR document OCR (Gemini 2.5 Pro vision).
+1. AR drafting agents for client letters, additional-evidence responses, intake summaries.
+1. AR voice via ElevenLabs `eleven_multilingual_v2` + a selected `ELEVENLABS_VOICE_ID_AR`.
+1. AR notification templates for email, SMS, WhatsApp, push, in-app.
+1. AR eligibility quiz at `/eligibility` and embedded on Webflow `/ar`.
+1. **Native Arabic speaker** in the marketing-HITL chain for all AR content.
+1. New skill: `skills/arabic-localization/SKILL.md` covering RTL patterns, typography, and transliteration of names (Arabic ↔ Latin script for SEF/AIMA forms).
+1. Locale routing: every URL has `/ar` equivalent; user’s locale persists across Webflow ↔ app ↔ portal.
+
+Rationale: MENA-source clients to Portugal is the primary market. Arabic-as-afterthought signals that LVJ is just another EN-first SaaS bolted with translation — kills trust on first session.
+
+Implementation: Sprint 0.7 stands up the design system + i18n; every subsequent UI sprint must ship EN + AR or it doesn’t ship.
+
+-----
+
+## D-016 — Stripe Connect from day 1
+
+**Date:** 2026-04-22
+**Status:** Active
+
+Provider payouts use Stripe Connect from launch, not manual invoice/wire-transfer for the first cohort.
+
+Rationale: manual settlement is operationally painful even at low volume; Stripe Connect onboarding is well-understood; doing it later means re-doing every provider’s onboarding.
+
+Implementation: Sprint 8.5 (self-serve onboarding) includes Stripe Connect Express onboarding for providers; Sprint 15 ships the monthly settlement cron.
+
+-----
+
+## D-017 — Public Service Provider Directory in v1
+
+**Date:** 2026-04-22
+**Status:** Active
+**New product surface** introduced by founder during PRD v0.3 review.
+
+Approved + active providers can opt into being listed publicly on `lvj-visa.com/providers` (and `/providers/[slug]` profile pages).
+
+Mechanics:
+
+- New field: `ServiceProvider.publicListingOptIn: boolean` (default false).
+- New field: `ServiceProvider.publicProfile: Json` (name, photo, bio, languages, jurisdictions served, optional aggregate ratings).
+- Provider opts in via `/provider/settings` → marketing-HITL approves listing copy (tier MARKETING, 24h SLA per D-010) → published to Webflow CMS Collection via Data API.
+- Webflow Collection mirrors the Prisma row (single source of truth = Prisma; Webflow is a render layer).
+- Public pages support EN + AR (per D-015).
+
+Strategic intent: visibility = lead flow → strong incentive for providers to engage actively.
+
+Risk (R13): directory becomes spam target → mitigated by marketing-HITL approval per listing + Platform-Admin suspension power.
+
+Implementation: Sprint 10.5.
+
+-----
+
+## D-018 — Analytics & cross-tenant data access
+
+**Date:** 2026-04-22
+**Status:** Active
+
+Three access tiers:
+
+1. **Per-user + per-tenant analytics:** full granularity, available to Tenant Admin for their own data only.
+1. **Platform Marketing cross-tenant view:** aggregated + anonymised + minimum **5-case k-anonymity** (no individual case identifiable). Used for content targeting only.
+1. **Platform Admin cross-tenant view:** full PII access. Every cross-tenant PII access generates an `AuditLog` row with `action: cross_tenant_pii_access`. Affected Tenant Admins receive a monthly summary of any Platform Admin reads of their data.
+
+Rationale: tension between platform’s need to learn from cross-tenant patterns and tenants’ privacy expectations. K-anonymity for marketing keeps that loop honest; explicit audit trail for Platform Admin keeps tenants informed without forbidding necessary ops access.
+
+Implementation: `lib/analytics.ts` exposes three views with different query shapes; `lib/audit.ts` writes `cross_tenant_pii_access` rows; monthly cron generates per-tenant access summaries.
+
+-----
+
+## D-019 — Sprint priority order
+
+**Date:** 2026-04-22
+**Status:** Active
+**Supersedes:** Original `Claude.md` v3.2 §Phase 5 sprint ordering for Sprints 0.x and 9–10.
+
+Order of execution:
+
+1. **Sprint 0.1** — Close 11 unauthed routes (security debt; loop is not safe to arm until done).
+1. **Sprint 0.5** — Multi-tenancy foundation (`Tenant` model, `tenantId` middleware, `assertTenantAccess()`, isolation test suite).
+1. **Sprint 0.7** — AR + RTL into design system + i18n (per D-015).
+1. **Sprint 8.5** — Self-serve tenant + provider onboarding (per D-019 commitment + D-016 Stripe Connect).
+1. **Webflow webhook → MarketingLead** (smallest piece of marketing automation; unblocks lead attribution).
+1. **AOS Phase 2** (deadline + WhatsApp/voice/internal-msg + KB RAG + consent model).
+1. **Sprint 15** — Stripe Connect provider payouts + commission ledger.
+1. **Sprint 10 + 10.5** — Service Provider Pool + Public Directory.
+
+Remaining sprints (B/C/D) execute per PRD v0.3 §6.1 phasing.
+
+Rationale: security debt before tenant work; tenant scaffolding before any tenant-aware UI; AR before any UI ships (so we don’t double-build EN-only); self-serve onboarding before any second provider. Marketing webhook is a tiny build that proves the funnel end-to-end before bigger marketing scope.
+
+-----
+
+*End of `D-007` → `D-019` block. Append as a single PR alongside PRD v0.3 + the Claude.md re-baseline.*
