@@ -373,6 +373,54 @@
 
 ---
 
+## D-022 · Master Execution Plan + Bugs log are first-class artefacts
+
+- **Status:** accepted · 2026-04-22 · founder
+- **Source:** user request to build a full execution plan covering
+  auditing, smoke testing, bug + fix logging, continuous learning,
+  and multi-agent Claude Code orchestration — with explicit security,
+  testing, safety, and timeout awareness both while *writing* and
+  *executing* the plan.
+- **Consequence:**
+  1. New canonical artefact `docs/EXECUTION_PLAN.md` (v1.0) — the
+     *operational* spine. Covers timeout protocol, artefact map,
+     audit framework (A-001…A-010), smoke battery (S-001…S-013),
+     severity scale + review cadence for bugs, continuous learning
+     loop (HITL diffs → KB → D-NNN), two-surface multi-agent
+     orchestration (AOS in-product vs Claude Code build), full
+     logging / correlation-id contract, security control matrix
+     (C-001…C-025), threat model snapshot, timeout runbook, per-
+     sprint recipes aligned to D-019, Definition of Done, open
+     items.
+  1. New canonical artefact `docs/BUGS.md` — single source of truth
+     for defects; seeded with `B-000` meta entry. Format, severity,
+     auto-population from smokes + audits, and review cadence are
+     governed by `EXECUTION_PLAN.md` §4.
+  1. `Claude.md` §1 Artefact map (future) and §Quick Start (future)
+     will be updated to reference both files in the next
+     architecture-touching PR; this PR is doc-only so the reference
+     is added via `EXECUTION_PLAN.md` §1 without bumping
+     `Claude.md`.
+  1. Process conflicts resolve in favour of `EXECUTION_PLAN.md`;
+     architecture conflicts in favour of `Claude.md`; product
+     conflicts in favour of `PRD.md`; sprint ordering in favour of
+     D-019 in this file.
+  1. Auto-population scripts (`scripts/smoke/report-failures.ts`,
+     `services/audits/*`) are scheduled deliverables, not prereqs —
+     the contract is live as of this PR; scripts land incrementally
+     per `EXECUTION_PLAN.md` §12.1.
+- **Rationale:** the repo had the *what* (PRD, Claude.md, AGENT_OS)
+  and the *history* (EXECUTION_LOG, DECISIONS) but no binding *how*
+  — how work is audited, smoke-tested, logged, learned from, and
+  decomposed across Claude Code subagents without blowing
+  timeouts. Without that spine every sprint re-derives process from
+  conversation, which is both slow and unsafe.
+- **Implementation PRs.** This PR
+  (`claude/execution-plan-framework-Ls8tj`) lands the contract.
+  Sprint 0.1 (next) is the first sprint to execute under it.
+
+---
+
 ## How to add a decision
 
 1. Grab the next `D-NNN` number.

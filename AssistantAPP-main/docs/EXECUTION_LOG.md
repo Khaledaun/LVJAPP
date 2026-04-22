@@ -321,6 +321,77 @@ traceability artefact captures the mapping.
 11 unauthed routes) remains the gate per D-019 before tenant
 scaffolding.
 
+### `pending` — Master Execution Plan + Bugs log (documentation-only)
+
+Lands the binding *operational* contract that sits alongside
+`Claude.md` (architecture), `docs/PRD.md` (product), `docs/AGENT_OS.md`
+(agents), `docs/DECISIONS.md` (choices), and this file (history). No
+source code touched.
+
+- **`docs/EXECUTION_PLAN.md`** (new, v1.0, ~70 KB) —
+  twelve sections:
+  §0 reading order + timeout protocol (while writing and while
+  executing; per-call wall clock ≤ 90 s, chunk writes ≤ 8 KB,
+  ≤ 40 tool calls per session checkpoint, no `sleep` loops, paginate
+  big reads);
+  §1 artefact map (who owns what, one question per artefact);
+  §2 audit framework — 10 audits (A-001…A-010) with owners +
+  cadence + blocking behaviour, per-PR gate checklist, cron map;
+  §3 smoke testing — 13 smokes (S-001…S-013) with ≤ 14 min per-PR
+  budget, smoke tenant isolation, sandbox-without-DB fallback;
+  §4 bugs & fixes log — 4-tier severity, entry format, smoke/audit
+  auto-population hook, review cadence, learning-loop handoff;
+  §5 continuous learning — 4 feedback streams → weekly KB queue →
+  three sinks (SKILL.md, golden fixture, D-NNN); prompt versioning
+  rule; 5-level skill maturity ladder; decision capture rule;
+  quarterly contract review;
+  §6 multi-agent Claude Code orchestration — explicit split
+  between AOS in-product agents and Claude Code build subagents;
+  subagent roster with tool + wall-clock budgets; parent/subagent
+  handoff protocol; parallelism caps; per-sprint orchestration
+  recipes (0.1 / 0.5 / 0.7 / 8.5); context-preservation protocol
+  across sessions;
+  §7 logging contract — six logs (`AuditLog`, `AutomationLog`,
+  `NotificationLog`, `VoiceCallLog`, `EXECUTION_LOG.md`, `BUGS.md`),
+  `correlationId` UUIDv7 birth points, what-writes-where matrix,
+  never-log list (PII, prompts, Stripe raw bodies);
+  §8 security & safety — 25 controls (C-001…C-025) mapped to
+  Golden Rules / Architecture Decisions / D-NNN, 10-threat model
+  snapshot, review checkpoints, safety-vs-UX trade-off ledger;
+  §9 operational timeout runbook — symptom→response table, the
+  "one more tool call" trap, partial-response recovery, when to use
+  `run_in_background`, sandbox-without-DB discipline;
+  §10 sprint orchestration runbook — current position, per-sprint
+  recipes for D-019 order (0.1 → 0.5 → 0.7 → 8.5 → Webflow webhook →
+  AOS Phase 2 → Sprint 15 → Sprint 10 + 10.5);
+  §11 Definition of Done for code PR, docs-only PR, new agent, new
+  skill, cron/audit, full sprint;
+  §12 open items — tooling gaps (Sprint 0.1 hard unblocks),
+  infrastructure gaps, organisational gaps, deferred decisions
+  awaiting conversation, fresh next actions.
+
+- **`docs/BUGS.md`** (new) — the bug log. Template, severity table,
+  status lifecycle, PII discipline, correlation-id convention. Seeded
+  with `B-000` meta entry (the log's own existence). Open Sev-1 /
+  Sev-2 section currently empty; operational debt (Postgres absence,
+  `node_modules`, 11 unauthed routes) stays in this file's rolling
+  open items since those are deferred deliverables, not defects.
+
+- **`docs/DECISIONS.md`** — appended `D-022` (Master Execution Plan
+  + Bugs log are first-class artefacts). Binds process conflicts to
+  `EXECUTION_PLAN.md`; architecture to `Claude.md`; product to
+  `PRD.md`; ordering to D-019.
+
+**Deferred.** Auto-population scripts
+(`scripts/smoke/report-failures.ts`, `services/audits/<id>.ts`, the
+full smoke battery, `scripts/audit-auth.ts`, `scripts/audit-tenant.ts`,
+`scripts/audit-jurisdiction.ts`, `.github/workflows/ci.yml`,
+`vercel.json` cron block) land per `EXECUTION_PLAN.md` §12.1 as
+Sprint 0.1 deliverables. `Claude.md` is not bumped in this PR — the
+cross-reference to `EXECUTION_PLAN.md` is carried by §1 of the new
+file itself so the reference is live without a `Claude.md` version
+change.
+
 ---
 
 ## Rolling open items
