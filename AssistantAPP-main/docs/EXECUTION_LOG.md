@@ -13,9 +13,10 @@
 
 ## Branch
 
-All current work is on `claude/phase-0-audit-NWzaW` (per the harness
-routing rule). Merges to `main` happen PR-by-PR; commits below are on
-the feature branch, chronological.
+Code work is on `claude/phase-0-audit-NWzaW`. The v4.0 documentation
+re-baseline lands on `claude/rebaseline-claude-v4-tSN6g` (docs-only;
+no source files touched). Merges to `main` happen PR-by-PR; commits
+below are on the feature branches, chronological.
 
 ## Session context
 
@@ -245,6 +246,80 @@ decision lands in `DECISIONS.md`.
     scope → decisions.
 
 No code changes. No schema changes. Purely docs + process.
+
+### `pending` — `Claude.md` re-baseline to v4.0 (documentation-only)
+
+Re-baselines the engineering contract against PRD v0.3 and the newly
+ratified decision block D-007 → D-019. **No source code touched.**
+Subsequent PRs will execute Sprint 0.1 → Sprint 16 against the new
+contract per D-019 ordering.
+
+- **`docs/PRD.md`** (was `docs/Pdr`, no extension) — renamed to the
+  canonical filename the rest of the docs refer to. Content unchanged.
+- **`docs/DECISIONS.md`** — inserted the PRD v0.3 decision block
+  `D-007` (flat 25% commission) through `D-019` (sprint priority).
+  Pre-existing `D-006` ("Drafting owns intent") and `D-007` ("Design
+  source = claude.ai/design pack") collided with the new numbering;
+  renumbered in place to `D-020` and `D-021` with "Renumbered" notes
+  for archaeological grep. `D-003` ("Arabic / multilingual UI on
+  hold") marked `superseded-by: D-015`. The stand-alone
+  `DECISIONS additions` delivery file has been removed now that its
+  content is merged.
+- **`docs/prompts/CLAUDE_MD_REBASELINE_v4.md`** (new) — the founder's
+  re-baseline prompt, preserved as a traceability artefact.
+  Reconciliation notes document the D-NNN numbering resolution.
+- **`Claude.md`** — end-to-end rewrite to **v4.0**. Version header,
+  "What changed in v4.0" callout, Quick Start step 0 (read PRD first),
+  Product Identity rows (Tenancy, Marketing surface, Languages),
+  Golden Rule #9 (tenant isolation), Architecture Decisions #11–#16
+  (multi-tenant + Webflow + marketing HITL + provider vault +
+  attribution + destinationJurisdiction). Project Structure tree
+  extended with `(platform)/`, `(provider)/`, marketing + tenants
+  routes, new `lib/` modules. Skills Reference table updated: 3
+  existing rows re-aimed at PT/EU jurisdiction (forms-automation,
+  deadline-engine, security); 14 new rows added. AITask routing
+  table: `rfe-draft` retired → `additional-evidence-draft`; added
+  `marketing-draft`, `seo-structured-data`, `geo-content-optimize`,
+  `attribution-classify`, `arabic-translate`,
+  `provider-listing-draft`. Phase 4 adds 18+ additive models (Tenant,
+  TenantContract, ServiceProvider, ServiceProviderContract,
+  CustomCategory, ProviderEngagement, ProviderListing,
+  ProviderTestimonial, MarketingLead, AttributionOverride,
+  ContentArticle, MarketingApproval, MarketingTouch, MarketingMetric,
+  CommissionLedger, CommissionPayout, StripeConnectAccount, DSAR,
+  AnalyticsEvent, AnalyticsAggregate, CostLimit, OnboardingProgress)
+  and lists every existing model gaining `tenantId`. Phase 5 replaced
+  end-to-end with Sprints 0.1, 0.5, 0.7, 8.5, 10.5, 15, 16 + revisions
+  to 4 / 8 / 9 / 10 / 13 / 14. Phase 6 env-vars adds Webflow + Stripe
+  Connect + AR/PT voice IDs + cost-cap defaults + pager; deprecates
+  IOLTA. Phase 7 output format adds tenant-impact + locale-impact line
+  items. Phase 8 reflects tenant isolation in `invoke()`,
+  license-parity for advice tagging, marketing agents in Phase 2.5,
+  D-012 cost caps, D-013 4-tier HITL, D-014 availability. Execution
+  Status snapshot appended (prior history preserved). Documentation
+  Discipline section unchanged.
+- **14 new SKILL.md scaffolds** created under `skills/`:
+  `multi-tenancy`, `marketing-automation`, `seo-aeo-geo`, `webflow`,
+  `portugal-immigration`, `uae-immigration`, `service-provider-pool`,
+  `marketplace-attribution`, `provider-directory`, `i18n-rtl`,
+  `onboarding`, `availability`, `cost-guard`, `escalation`. Each
+  carries YAML front-matter with `owner`, `jurisdiction`,
+  `confidence: draft`, `review_ttl`, and `motivated_by:` back-links
+  to PRD / D-NNN. Full article bodies iterate per owning sprint.
+
+**Numbering reconciliation.** The founder's re-baseline prompt
+referenced "D-006 through D-020 (14 decisions)" and used D-NNN numbers
+that drift above D-010 (e.g. prompt "D-011 cost caps" = canonical
+D-012; prompt "D-012 HITL tiers" = canonical D-013; prompt "D-016
+directory" = canonical D-017; prompt "D-017 Stripe Connect" =
+canonical D-016; prompt "D-020 sprint priority" = canonical D-019).
+This log + `Claude.md` v4.0 + PRD v0.3 use the canonical
+`docs/DECISIONS.md` numbers. The `CLAUDE_MD_REBASELINE_v4.md`
+traceability artefact captures the mapping.
+
+**Deferred.** No migrations; no code touched. Sprint 0.1 (close the
+11 unauthed routes) remains the gate per D-019 before tenant
+scaffolding.
 
 ---
 
