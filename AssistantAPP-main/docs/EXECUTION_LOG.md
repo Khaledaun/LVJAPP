@@ -227,6 +227,25 @@ Lands the full contract described in `docs/AGENT_OS.md` §4–§10.
   Voice, Legal KB RAG, Internal Messaging, Eligibility, Documents,
   Billing, CRM, Analytics/QA, Growth ops).
 
+### `7fd44ad` — Documentation discipline: EXECUTION_LOG + DECISIONS + Claude.md v3.2
+
+Encodes the founder's rule (decision `D-005` in `docs/DECISIONS.md`):
+every commit updates this log in the same PR; every conversation
+decision lands in `DECISIONS.md`.
+
+- New `docs/EXECUTION_LOG.md` (this file) and `docs/DECISIONS.md`
+  (seeded with D-001 … D-007).
+- `Claude.md` bumped to v3.2:
+  - Quick Start now lists the four reads required before any task
+    (Claude.md / EXECUTION_LOG.md / DECISIONS.md / AGENT_OS.md).
+  - New §Documentation Discipline section (6 rules).
+  - New §Execution Status (Snapshot) — the 5 landed commits, the
+    3 feature flags currently OFF, the 3 external blockers.
+  - Footer re-worded: architecture → Claude.md, progress → log,
+    scope → decisions.
+
+No code changes. No schema changes. Purely docs + process.
+
 ---
 
 ## Rolling open items
