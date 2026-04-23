@@ -16,7 +16,9 @@ describe('lib/audit — logAuditEvent', () => {
   })
 
   it('writes to prisma.auditLog.create with canonical field names', async () => {
-    const create = jest.fn().mockResolvedValue({ id: 'a1' } as any)
+    // `as never` — jest-mock v30 types the mockResolvedValue slot
+    // as `never` when `jest.fn()` has no explicit generic. Issue #11 §4.
+    const create = jest.fn().mockResolvedValue({ id: 'a1' } as never)
     jest.doMock('@/lib/db', () => ({
       getPrisma: async () => ({ auditLog: { create } }),
     }))
@@ -39,7 +41,9 @@ describe('lib/audit — logAuditEvent', () => {
   it('swallows DB errors (non-fatal audit policy)', async () => {
     jest.doMock('@/lib/db', () => ({
       getPrisma: async () => ({
-        auditLog: { create: jest.fn().mockRejectedValue(new Error('pg down')) },
+        auditLog: {
+          create: jest.fn().mockRejectedValue(new Error('pg down') as never),
+        },
       }),
     }))
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
@@ -49,7 +53,7 @@ describe('lib/audit — logAuditEvent', () => {
   })
 
   it('legacy logAudit(prisma, entry) signature still works', async () => {
-    const create = jest.fn().mockResolvedValue({} as any)
+    const create = jest.fn().mockResolvedValue({} as never)
     jest.doMock('@/lib/db', () => ({
       getPrisma: async () => ({ auditLog: { create } }),
     }))

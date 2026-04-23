@@ -1,15 +1,23 @@
 import { render, RenderOptions } from '@testing-library/react'
 import { ReactElement } from 'react'
 import { SessionProvider } from 'next-auth/react'
+import type { Session } from 'next-auth'
 
-// Mock session for testing
-const mockSession = {
+// Mock session for testing. `types/next-auth.d.ts` augments Session
+// with `user.id: string` and `user.role: Role`. The `Role` enum is
+// imported there as a type — re-importing it here (or from the
+// generated `@prisma/client`) hits the enum re-export gap tracked
+// as the "risky half" of Issue #11. So we route the role literal
+// through `Session['user']['role']` instead, which resolves to the
+// same `Role` type without needing the runtime import.
+const mockSession: Session = {
   user: {
+    id: 'test-user-1',
     email: 'test@example.com',
-    role: 'admin',
-    name: 'Test User'
+    role: 'ADMIN' as Session['user']['role'],
+    name: 'Test User',
   },
-  expires: '2024-12-31'
+  expires: '2024-12-31',
 }
 
 // Custom render function that includes providers

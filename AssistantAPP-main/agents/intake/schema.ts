@@ -4,7 +4,7 @@ import { z } from 'zod'
 
 export const IntakeInputSchema = z.object({
   leadId:  z.string().min(1),
-  answers: z.record(z.unknown()),
+  answers: z.record(z.string(), z.unknown()),
   attachments: z
     .array(z.object({
       gcsKey: z.string(),
