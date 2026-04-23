@@ -797,6 +797,28 @@ prerequisite — can be drafted now but has no `tenantId` fields to
 audit until the migration lands) and per-smoke scaffolding under
 `scripts/smoke/` (lands incrementally per sprint).
 
+### `pending` — CI fix: swap ts-node for tsx + fetch full history
+
+CI failure on PR #10 check run `A-002 · unit · smoke`:
+`sh: 1: ts-node: not found`. The audit scripts were invoked via
+`ts-node --compiler-options …` but the repo's existing dev setup
+uses `tsx` (already in `devDependencies`, no `ts-node` installed).
+
+- **`package.json`** — switched all 8 audit scripts
+  (`audit:auth`, `audit:auth:json`, `audit:jurisdiction`,
+  `audit:jurisdiction:json`, `audit:docs`, `audit:docs:json`,
+  `audit:prisma`, `audit:prisma:json`) from
+  `ts-node --compiler-options '{"module":"commonjs"}'` to plain
+  `tsx`. `tsx` doesn't need the compiler-options shim for ESM/CJS
+  interop, so the scripts are slightly simpler.
+- **`.github/workflows/ci.yml`** — `actions/checkout@v4` now runs
+  with `fetch-depth: 0`. A-010 (doc discipline) and C-004 (prisma)
+  both diff against `origin/main`; the default shallow clone would
+  have failed with `fatal: bad revision 'origin/main...HEAD'`.
+
+No source-code changes. Scripts themselves were never touched —
+the failure was purely in the invocation harness.
+
 ---
 
 ## Rolling open items
