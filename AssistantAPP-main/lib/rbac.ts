@@ -152,6 +152,20 @@ export async function assertStaff(): Promise<AccessResult> {
   return { user }
 }
 
+/**
+ * Assert the user is authenticated (any role). Used by self-serve
+ * endpoints that a tenant user or a client can both hit — e.g.
+ * `/api/auth/bootstrap`, `/api/terms/*`. Returns the session user so
+ * the caller can gate further on role / tenantId if needed.
+ */
+export async function assertAuthed(): Promise<AccessResult> {
+  const bypass = devBypassUser()
+  if (bypass) return { user: bypass }
+  const user = await loadSessionUser()
+  if (!user) unauthorized()
+  return { user }
+}
+
 export function getRoleDisplayName(role: string): string {
   const normalized = (role || '').toUpperCase()
   switch (normalized) {

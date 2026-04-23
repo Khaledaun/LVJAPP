@@ -54,9 +54,12 @@ const GUARD_PATTERNS = [
   /\bassertCaseAccess\s*\(/,
   /\bassertOrgAccess\s*\(/,
   /\bassertStaff\s*\(/,
+  /\bassertAuthed\s*\(/,
   /\bguardCaseAccess\s*\(/,
   /\bguardOrgAccess\s*\(/,
   /\bguardStaff\s*\(/,
+  /\bguardAuthed\s*\(/,
+  /\brunAuthed\s*\(/,
   /\bgetServerSession\s*\(/,
 ]
 

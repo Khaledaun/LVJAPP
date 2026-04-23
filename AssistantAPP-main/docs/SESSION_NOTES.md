@@ -7,6 +7,93 @@ landing in code should graduate into `DECISIONS.md` or
 
 ---
 
+## 2026-04-23 — Cross-repo review (yalla-london + KhaledAun.com)
+
+**Scope.** Intended targets: `khaledaun/yalla-london` and
+`khaledaun/khaledaunsite`. `khaledaunsite` is **private** and outside
+this session's MCP allowlist (locked to `khaledaun/lvjapp`); WebFetch
+returns 404 on private repos. Fallback scope used: `yalla-london`
+(public) and the adjacent public sibling `khaledaun/KhaledAun.com`.
+A second pass against `khaledaunsite` should land when MCP scope
+refreshes or the repo is read-shareable.
+
+### (1) Supabase RLS patterns
+
+- **yalla-london** — *no* RLS. App-layer scoping via a `siteId`
+  column on every business model, backfilled to legacy rows. No
+  `auth.uid()`, no `current_tenant()`. Validates D-023 (app-layer
+  first, RLS defense-in-depth only).
+- **KhaledAun.com** (`packages/db/sql/rls-policies.sql`) — RLS
+  enabled but **role-based**, not tenant-based. Policies read
+  `auth.jwt() ->> 'role'` with `COALESCE` across root claim,
+  `app_metadata.role`, and `user_metadata.role`. Helper function
+  `get_user_role()` declared `SECURITY DEFINER`. No
+  `current_tenant()` and no `SET LOCAL`.
+- **Footgun.** KhaledAun.com writes *only* `USING` — no `WITH CHECK`
+  on its INSERT / UPDATE policies. That lets a caller update a row
+  *into* a value that escapes the policy filter. For LVJ the RLS
+  layer must use **both** `USING` and `WITH CHECK` on every write
+  policy. Logged as D-024.
+
+### (2) Multi-tenant Stripe Connect
+
+**Neither repo** uses Stripe Connect. No cribs for `account_links`
+onboarding, `return_url` signing, webhook rotation, or a
+`PlatformAccount`-like model. Sprint 8.5 (onboarding) and Sprint 15
+(payouts) will have to reference Stripe docs + test-mode directly
+rather than an internal precedent. No blocking dependency surfaced —
+the stated Task-3 priority order holds.
+
+### (3) CI gate shape
+
+- **yalla-london** — blocking chain
+  `lint-and-typecheck → build-and-test → security-scan`; informational
+  tier `migration-check` (PR-only), `lighthouse-ci`,
+  `enterprise-compliance`, `full-test-suite` (main-only); final
+  `detect-failures` job runs with `if: always()` and aggregates all
+  prior job statuses into one composite PR signal. **Cleaner than our
+  gates + legacy-checks split in one respect** — the aggregator gives
+  a single observable status regardless of which informational leg
+  wobbled. Worth cribbing when A-003 flips to blocking.
+- **KhaledAun.com** — simpler `quality-checks → build-and-test →
+  deploy`, with `security-scan` as a parallel informational branch.
+
+### (4) Known-gaps carried over
+
+From yalla-london `docs/known-gaps-and-fixes.md`:
+
+1. **CJ-001 (RESOLVED).** Commission / click / offer models originally
+   lacked `siteId` → cross-site financial leak. Fix: backfill
+   `siteId` on every model touching money. Map to our `Payment`,
+   `Commission`, `MarketingLead` — `tenantId` must be set at creation,
+   never inferred at read time.
+2. **Rule 64.** `OR: [{ siteId }, { siteId: null }]` backward-compat
+   during migration windows keeps legacy unscoped rows visible to
+   tenant queries.
+3. **Rule 74.** Revenue queries must explicitly filter `siteId`.
+   Equivalent for us: commission ledger + payout views.
+4. **Rule 9.** `Promise.all` over 15+ Prisma queries exhausts Supabase
+   PgBouncer's pool. Cockpit builders run sequentially. Applies to
+   our `analytics-rollup` cron and any cross-tenant admin view.
+5. **Rule 47.** Additive migrations use `ALTER TABLE ADD COLUMN IF NOT
+   EXISTS`, not `CREATE TABLE IF NOT EXISTS`.
+6. **Rule 3.** Use `{ not: "" }`, not `{ not: null }`, on non-nullable
+   `String` columns (Supabase runtime crash).
+7. **Rules 39 + 80.** `requireAdmin` return MUST be checked; auth
+   guards MUST execute BEFORE feature flags / rate limiters. Our
+   `runAuthed()` already fuses these structurally — preserve that.
+
+### (5) Actions taken in this commit
+
+- **D-024** opened (Supabase RLS: both `USING` and `WITH CHECK`,
+  `app.current_tenant()` via `SET LOCAL`).
+- `EXECUTION_PLAN.md` §10 gains **Sprint 0.5.1** recipe carrying the
+  cribs above; §10.5 (8.5) and §10.8 (15) gain a sentence noting the
+  absence of Stripe-Connect precedent.
+- No sprint re-ordering. Sprint 0.5.1 remains the next unit per D-019.
+
+---
+
 ## 2026-04-23 — for the next session
 
 ### (1) Cross-repo review: `yalla-london` and `khaledaunsite`

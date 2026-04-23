@@ -3,7 +3,6 @@ export type Language = 'en' | 'ar' | 'pt';
 
 import { NextRequest, NextResponse } from "next/server";
 import { TERMS_CONTENT, CURRENT_TERMS_VERSION } from "@/lib/terms";
-import { getPrisma } from '@/lib/db'
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const revalidate = 0;
@@ -12,7 +11,6 @@ export const fetchCache = 'force-no-store';
 
 
 export async function GET(request: NextRequest) {
-  const prisma = await getPrisma();
   const { searchParams } = new URL(request.url);
   const language = (searchParams.get('language') || 'EN') as Language;
   const type = searchParams.get('type') as TermsType;

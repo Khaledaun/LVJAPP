@@ -140,7 +140,8 @@ function main(): void {
     const usesTenantHelper =
       /from\s+['"]@\/lib\/tenants['"]/.test(src) ||
       /withTenantContext\s*\(/.test(src) ||
-      /runPlatformOp\s*\(/.test(src)
+      /runPlatformOp\s*\(/.test(src) ||
+      /runAuthed\s*\(/.test(src)
 
     if (!usesTenantHelper) {
       violations.push(rel)

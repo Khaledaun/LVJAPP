@@ -2,7 +2,7 @@ import { logAudit } from '@/lib/audit'
 
 import { NextResponse } from 'next/server'
 import { getPrisma } from '@/lib/db'
-import { assertCaseAccess } from '@/lib/rbac'
+import { runAuthed } from '@/lib/rbac-http'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,24 +28,25 @@ function normalizeDocCreate(caseId: string, body: any) {
 }
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
-  try {
-    const body = await req.json()
-    if (!body?.objectName) {
-      return NextResponse.json({ ok: false, reason: 'missing-objectName' }, { status: 400 })
-    }
-
-    await assertCaseAccess(params.id)
-    const prisma = await getPrisma()
-    const data: any = normalizeDocCreate(params.id, body)
-
-    const doc = await prisma.document.create({ data })
-    await logAudit(prisma, { action: 'document.upload.complete', caseId: params.id, diff: { documentId: doc.id, objectName: data.gcsObject } });
-    return NextResponse.json({ ok: true, item: doc })
-  } catch (err: any) {
-    console.error('/documents/complete error:', err)
-    return NextResponse.json(
-      { ok: false, error: err?.code ?? err?.name ?? 'ERR', message: err?.message ?? String(err) },
-      { status: 500 }
-    )
+  const body = await req.json()
+  if (!body?.objectName) {
+    return NextResponse.json({ ok: false, reason: 'missing-objectName' }, { status: 400 })
   }
+
+  return runAuthed({ caseId: params.id }, async () => {
+    try {
+      const prisma = await getPrisma()
+      const data: any = normalizeDocCreate(params.id, body)
+
+      const doc = await prisma.document.create({ data })
+      await logAudit(prisma, { action: 'document.upload.complete', caseId: params.id, diff: { documentId: doc.id, objectName: data.gcsObject } });
+      return NextResponse.json({ ok: true, item: doc })
+    } catch (err: any) {
+      console.error('/documents/complete error:', err)
+      return NextResponse.json(
+        { ok: false, error: err?.code ?? err?.name ?? 'ERR', message: err?.message ?? String(err) },
+        { status: 500 }
+      )
+    }
+  })
 }
