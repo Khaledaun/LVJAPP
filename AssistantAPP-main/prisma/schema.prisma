@@ -16,6 +16,12 @@ model User {
   password         String?
   officeId         String?
   office           Office?   @relation(fields: [officeId], references: [id])
+  // Sprint 0.5 · D-023 — tenantId is NULL for platform staff (LVJ_* roles)
+  // so they can operate across all tenants. Tenant-scoped users (CLIENT,
+  // LAWYER_*) carry a non-null tenantId. Enforced at runtime by the
+  // tenant middleware in lib/tenants.ts.
+  tenantId         String?
+  tenant           Tenant?   @relation(fields: [tenantId], references: [id])
   casesAsClient    Case[]    @relation("CaseClient")
   casesAsManager   Case[]    @relation("CaseManager")
   casesAsLawyer    Case[]    @relation("Lawyer")
@@ -23,10 +29,17 @@ model User {
   auditLogs        AuditLog[]
   notificationLogs NotificationLog[]
   voiceCallLogs    VoiceCallLog[]
+
+  @@index([tenantId])
 }
 
 model ServiceType {
   id              String   @id @default(cuid())
+  // title / code are unique per tenant (a tenant may rename or fork a
+  // service catalog entry). The global @unique is preserved while the
+  // data set is single-tenant (LVJ backfill) and will be migrated to a
+  // compound @@unique([tenantId, title|code]) in Sprint 0.5.1 once the
+  // first cross-tenant tenant seeds real data (D-023 follow-up).
   title           String   @unique
   description     String?
   code            String?  @unique
@@ -39,13 +52,21 @@ model ServiceType {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   cases           Case[]
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
 }
 
 model Case {
   id                   String    @id @default(cuid())
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
+  tenantId             String
+  tenant               Tenant    @relation(fields: [tenantId], references: [id])
   title                String
+  // caseNumber is tenant-scoped: two tenants may legitimately issue the
+  // same human-facing number. Compound uniqueness lands in Sprint 0.5.1.
   caseNumber           String    @unique
   totalFee             Int
   currency             String
@@ -77,11 +98,16 @@ model Case {
   auditLogs            AuditLog[]
   notificationLogs     NotificationLog[]
   voiceCallLogs        VoiceCallLog[]
+
+  @@index([tenantId])
+  @@index([tenantId, overallStatus])
 }
 
 // Multi-office support (Architecture Decision #10 — officeId on staff-facing models)
 model Office {
   id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
   name      String
   city      String
   country   String
@@ -92,11 +118,15 @@ model Office {
   cases     Case[]
   members   User[]
   createdAt DateTime @default(now())
+
+  @@index([tenantId])
 }
 
 // Partner network (distinct from existing per-case ExternalPartner)
 model Partner {
   id             String      @id @default(cuid())
+  tenantId       String
+  tenant         Tenant      @relation(fields: [tenantId], references: [id])
   name           String
   type           PartnerType
   contactEmail   String
@@ -104,16 +134,26 @@ model Partner {
   commissionPct  Float       @default(0)
   totalReferrals Int         @default(0)
   totalRevenue   Float       @default(0)
+  // referralCode is globally unique: it shows up in public URLs so a
+  // collision between tenants would leak one tenant's attribution into
+  // another. Keep the global @unique.
   referralCode   String      @unique @default(cuid())
   cases          Case[]      @relation("PartnerCase")
   leads          EligibilityLead[]
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
+
+  @@index([tenantId])
 }
 
 // Outcome predictor data collection
 model CaseOutcome {
   id                    String        @id @default(cuid())
+  // tenantId denormalized from Case for RLS + query-plan simplicity
+  // (D-023 · Sprint 0.5). Must always equal this.case.tenantId; enforced
+  // by lib/tenants.ts middleware on write.
+  tenantId              String
+  tenant                Tenant        @relation(fields: [tenantId], references: [id])
   caseId                String        @unique
   case                  Case          @relation(fields: [caseId], references: [id])
   serviceCode           String
@@ -126,11 +166,15 @@ model CaseOutcome {
   approvalOddsPredicted Float?
   approvalOddsActual    Float?
   createdAt             DateTime      @default(now())
+
+  @@index([tenantId])
 }
 
 // Eligibility quiz leads
 model EligibilityLead {
   id           String     @id @default(cuid())
+  tenantId     String
+  tenant       Tenant     @relation(fields: [tenantId], references: [id])
   email        String
   phone        String?
   name         String?
@@ -144,11 +188,18 @@ model EligibilityLead {
   partner      Partner?   @relation(fields: [partnerId], references: [id])
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
+
+  @@index([tenantId])
+  @@index([tenantId, status])
 }
 
 // Multi-channel notification feed
 model NotificationLog {
   id         String       @id @default(cuid())
+  // tenantId denormalized (D-023). Platform-staff notifications may be
+  // null (cross-tenant ops alerts); user / case notifications are not.
+  tenantId   String?
+  tenant     Tenant?      @relation(fields: [tenantId], references: [id])
   caseId     String?
   case       Case?        @relation(fields: [caseId], references: [id])
   userId     String
@@ -160,11 +211,17 @@ model NotificationLog {
   externalId String?
   readAt     DateTime?
   createdAt  DateTime     @default(now())
+
+  @@index([tenantId])
 }
 
 // Voice call log (ElevenLabs + Twilio pipeline)
 model VoiceCallLog {
   id          String   @id @default(cuid())
+  // tenantId denormalized (D-023). Nullable because early platform-admin
+  // test calls may not carry a case/tenant context.
+  tenantId    String?
+  tenant      Tenant?  @relation(fields: [tenantId], references: [id])
   caseId      String?
   case        Case?    @relation(fields: [caseId], references: [id])
   userId      String
@@ -177,18 +234,27 @@ model VoiceCallLog {
   transcript  String?  @db.Text
   locale      String   @default("en")
   createdAt   DateTime @default(now())
+
+  @@index([tenantId])
 }
 
 // Audit log (referenced by lib/audit.ts — previously missing from schema)
 model AuditLog {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
+  // tenantId nullable: platform-level audit events (cross-tenant admin
+  // actions, sign-ins by platform staff) legitimately carry no tenant.
+  tenantId  String?
+  tenant    Tenant?  @relation(fields: [tenantId], references: [id])
   action    String
   caseId    String?
   case      Case?    @relation(fields: [caseId], references: [id])
   userId    String?
   user      User?    @relation(fields: [userId], references: [id])
   diff      Json?
+
+  @@index([tenantId, createdAt])
+  @@index([action, createdAt])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -200,6 +266,10 @@ model AuditLog {
 model AutomationLog {
   id                 String   @id @default(cuid())
   createdAt          DateTime @default(now())
+  // tenantId nullable: platform-level agents (e.g. nightly audits) may
+  // run with no tenant context.
+  tenantId           String?
+  tenant             Tenant?  @relation(fields: [tenantId], references: [id])
   agentId            String
   agentVersion       String
   correlationId      String
@@ -220,6 +290,7 @@ model AutomationLog {
   errorClass         String?
   errorMessage       String?
 
+  @@index([tenantId, createdAt])
   @@index([agentId, createdAt])
   @@index([correlationId])
   @@index([caseId])
@@ -238,6 +309,10 @@ model AgentDraft {
   id            String    @id @default(cuid())
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  // tenantId denormalized (D-023). Always derivable from case/lead, but
+  // stored for RLS and tenant-scoped HITL queue queries.
+  tenantId      String
+  tenant        Tenant    @relation(fields: [tenantId], references: [id])
   agentId       String
   agentVersion  String
   correlationId String
@@ -257,6 +332,7 @@ model AgentDraft {
   externalId    String?   // NotificationLog.externalId after send
   createdBy     String?
 
+  @@index([tenantId, reviewState])
   @@index([caseId])
   @@index([leadId])
   @@index([reviewState])
@@ -275,6 +351,10 @@ enum DraftReviewState {
 model HITLApproval {
   id            String     @id @default(cuid())
   createdAt     DateTime   @default(now())
+  // tenantId denormalized (D-023). HITL queues are always tenant-scoped;
+  // marketing-HITL for LVJ D-010 queue filters by this column.
+  tenantId      String
+  tenant        Tenant     @relation(fields: [tenantId], references: [id])
   agentId       String
   gateId        String
   correlationId String
@@ -291,6 +371,7 @@ model HITLApproval {
   reason        String?    @db.Text
   diff          Json?
 
+  @@index([tenantId, status, slaDueAt])
   @@index([status, slaDueAt])
   @@index([caseId])
   @@index([correlationId])
@@ -308,6 +389,11 @@ model CaseDeadline {
   id          String         @id @default(cuid())
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
+  // tenantId denormalized (D-023). Deadline-agent sweeps filter by
+  // tenant so cross-tenant operators can't see or nudge each other's
+  // deadlines.
+  tenantId    String
+  tenant      Tenant         @relation(fields: [tenantId], references: [id])
   caseId      String
   kind        String         // e.g. "rfe_response", "biometrics", "interview", "filing_window"
   title       String
@@ -318,6 +404,7 @@ model CaseDeadline {
   escalatedAt DateTime?
   notes       String?        @db.Text
 
+  @@index([tenantId, dueAt, status])
   @@index([caseId])
   @@index([dueAt, status])
 }
@@ -338,37 +425,57 @@ model PartnerRole {
   partners ExternalPartner[]
 }
 
+// Sprint 0.5 · D-023 — every case-scoped child table carries tenantId
+// denormalized, mirroring the parent Case.tenantId. Redundant for
+// correctness under the middleware guard, but essential for Postgres
+// RLS policies in Supabase (single-column policy per table) and for
+// query plans that don't need to join Case.
+
 model ExternalPartner {
-  id     String    @id @default(cuid())
-  name   String
-  email  String?
-  type   String
-  case   Case      @relation(fields: [caseId], references: [id])
-  caseId String
-  role   PartnerRole @relation(fields: [roleId], references: [id])
-  roleId String
+  id       String    @id @default(cuid())
+  tenantId String
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  name     String
+  email    String?
+  type     String
+  case     Case      @relation(fields: [caseId], references: [id])
+  caseId   String
+  role     PartnerRole @relation(fields: [roleId], references: [id])
+  roleId   String
+
+  @@index([tenantId])
 }
 
 model ExternalCommunication {
   id        String    @id @default(cuid())
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
   createdAt DateTime  @default(now())
   direction Direction
   body      String    @db.Text
   sender    String
   case      Case      @relation(fields: [caseId], references: [id])
   caseId    String
+
+  @@index([tenantId])
 }
 
 model Document {
-  id     String   @id @default(cuid())
-  name   String
-  state  DocState
-  case   Case     @relation(fields: [caseId], references: [id])
-  caseId String
+  id       String   @id @default(cuid())
+  tenantId String
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  name     String
+  state    DocState
+  case     Case     @relation(fields: [caseId], references: [id])
+  caseId   String
+
+  @@index([tenantId])
 }
 
 model Payment {
   id            String        @id @default(cuid())
+  tenantId      String
+  tenant        Tenant        @relation(fields: [tenantId], references: [id])
   amount        Int
   currency      String
   status        PaymentStatus
@@ -376,22 +483,32 @@ model Payment {
   invoiceNumber String
   case          Case          @relation(fields: [caseId], references: [id])
   caseId        String
+
+  @@index([tenantId])
 }
 
 model TimelineEvent {
   id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
   createdAt DateTime @default(now())
   details   String
   case      Case     @relation(fields: [caseId], references: [id])
   caseId    String
+
+  @@index([tenantId])
 }
 
 model Message {
   id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
   createdAt DateTime @default(now())
   body      String   @db.Text
   case      Case     @relation(fields: [caseId], references: [id])
   caseId    String
+
+  @@index([tenantId])
 }
 
 enum Role {
@@ -468,5 +585,95 @@ enum PaymentStatus {
 enum Direction {
   INCOMING
   OUTGOING
+}
+
+// ─────────────────────────────────────────────────────────────
+// Sprint 0.5 · D-023 — Multi-tenancy foundation
+//
+// `Tenant` is the root isolation boundary for the platform. Every
+// business row (Case, Lead, Document, Payment, etc.) carries a
+// `tenantId` and is read/written through `lib/tenants.ts` which
+// scopes Prisma queries via AsyncLocalStorage + Prisma middleware.
+//
+// Platform staff (LVJ_* roles) operate with `user.tenantId = null`
+// and bypass the scoping guard through an explicit `runPlatformOp()`
+// block, which logs every cross-tenant action to `AuditLog` with
+// `action='platform.cross_tenant'`.
+//
+// `TenantContract` captures the commercial + legal envelope between
+// LVJ (as platform operator) and the tenant (operating firm). The
+// billing fields are intentionally minimal here — the Stripe Connect
+// identifiers and commission schedule land in Sprint 15.
+// ─────────────────────────────────────────────────────────────
+
+model Tenant {
+  id              String   @id @default(cuid())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  // Human-facing slug used in URLs and exports. Lowercase ASCII + dash.
+  slug            String   @unique
+  displayName     String
+  // Operating jurisdiction (country ISO-3166-1 alpha-2) — drives the
+  // default-locale fallback and the A-004 jurisdiction sweep.
+  jurisdiction    String   // e.g. "US", "AE", "BR"
+  defaultLocale   String   @default("en")
+  status          TenantStatus @default(ACTIVE)
+  // Marketing-HITL queue switch (D-010). When true, tenant-branded
+  // outbound marketing drafts require tenant review before send; when
+  // false, marketing is fully paused.
+  marketingHitlEnabled Boolean @default(true)
+
+  contract        TenantContract?
+  users           User[]
+  cases           Case[]
+  offices         Office[]
+  partners        Partner[]
+  leads           EligibilityLead[]
+  serviceTypes    ServiceType[]
+  documents       Document[]
+  payments        Payment[]
+  messages        Message[]
+  timelineEvents  TimelineEvent[]
+  externalPartners ExternalPartner[]
+  externalComms   ExternalCommunication[]
+  caseOutcomes    CaseOutcome[]
+  notificationLogs NotificationLog[]
+  voiceCallLogs   VoiceCallLog[]
+  auditLogs       AuditLog[]
+  automationLogs  AutomationLog[]
+  agentDrafts     AgentDraft[]
+  hitlApprovals   HITLApproval[]
+  caseDeadlines   CaseDeadline[]
+
+  @@index([status])
+}
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED        // billing failure, contract breach — read-only
+  PROVISIONING     // onboarding in progress, no inbound leads yet
+  ARCHIVED         // offboarded — data retained per D-005 retention
+}
+
+model TenantContract {
+  id              String   @id @default(cuid())
+  tenantId        String   @unique
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  // Contract version drives TOS gating: a tenant whose `acceptedVersion`
+  // is lower than the current posted version is forced through a re-
+  // acceptance flow before they can act on LVJ-routed leads.
+  version         String
+  acceptedVersion String?
+  acceptedAt      DateTime?
+  acceptedByUserId String?
+  // Commission terms — kept coarse here; Sprint 15 promotes this to a
+  // CommissionSchedule model with tiers.
+  commissionPct   Float    @default(0)
+  // Free-tier expiry (D-009). Null once a paid plan is active.
+  freeTierExpiresAt DateTime?
+  // Stripe Connect — populated during Sprint 8.5 onboarding.
+  stripeAccountId String?  @unique
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 

@@ -29,6 +29,7 @@
     "audit:docs:json": "tsx scripts/lint-docs.ts --json",
     "audit:prisma": "tsx scripts/audit-prisma.ts",
     "audit:prisma:json": "tsx scripts/audit-prisma.ts --json",
+    "audit:tenant": "tsx scripts/audit-tenant.ts",
     "smoke:auth": "playwright test e2e-tests/auth-smoke.spec.ts",
     "smoke:locale": "playwright test e2e-tests/locale-smoke.spec.ts",
     "smoke:webflow": "playwright test e2e-tests/webflow-webhook-smoke.spec.ts",

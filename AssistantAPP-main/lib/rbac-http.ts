@@ -6,6 +6,7 @@ import {
   assertStaff as _assertStaff,
   type SessionUser,
 } from './rbac'
+import { withTenantContext } from './tenants'
 
 // HTTP-layer auth guards. Wraps the assert* helpers from lib/rbac.ts
 // (which throw on failure) so API route handlers can turn an auth
@@ -57,4 +58,40 @@ export async function guardStaff(): Promise<GuardResult> {
   } catch (err) {
     return { ok: false, response: toErrorResponse(err) }
   }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Sprint 0.5 · D-023 — `runAuthed` composes guard + tenant scope.
+//
+// Use this for new routes. Existing routes that still use the
+// two-step `guard* + withTenantContext` form are flagged by the
+// A-003 audit (scripts/audit-tenant.ts) and migrate to `runAuthed`
+// as they are touched.
+//
+// Example:
+//   export async function GET(_: NextRequest, ctx: { params: { id: string }}) {
+//     return runAuthed({ caseId: ctx.params.id }, async (user) => {
+//       const prisma = await getPrisma()
+//       const c = await prisma.case.findUnique({ where: { id: ctx.params.id }})
+//       return NextResponse.json(c)
+//     })
+//   }
+// ─────────────────────────────────────────────────────────────
+
+export type AuthedGuard =
+  | 'staff'
+  | { caseId: string }
+  | { orgId: string }
+
+export async function runAuthed(
+  kind: AuthedGuard,
+  handler: (user: SessionUser) => Promise<Response>,
+): Promise<Response> {
+  const g: GuardResult =
+    kind === 'staff'           ? await guardStaff()
+    : 'caseId' in kind         ? await guardCaseAccess(kind.caseId)
+    : await guardOrgAccess(kind.orgId)
+
+  if (!g.ok) return g.response
+  return withTenantContext(g.user, () => handler(g.user))
 }

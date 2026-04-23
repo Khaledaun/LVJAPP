@@ -72,6 +72,10 @@ jobs:
         run: cd AssistantAPP-main && npm run audit:prisma -- --base origin/main --head HEAD
         if: github.event_name == 'pull_request'
 
+      - name: A-003 · tenant-isolation audit (informational, flips blocking in Sprint 0.5.1)
+        run: npm run audit:tenant
+        continue-on-error: true
+
   legacy-checks:
     name: legacy-checks · tsc/lint/test/build/smoke (informational)
     runs-on: ubuntu-latest
