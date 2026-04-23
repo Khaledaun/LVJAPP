@@ -1468,6 +1468,67 @@ one obvious place.
 
 ---
 
+## 2026-04-23 · PRD ↔ Plan alignment audit
+
+Same branch. Cross-checked `docs/PRD.md` v0.3 against
+`docs/EXECUTION_PLAN.md` v1.2 + the current code state. New
+artefact: `docs/prd-plan-audit.md` (~260 lines) walks every PRD
+§3 goal / §5 metric / §6 sprint against the plan and the
+committed code.
+
+**Verdict: plan fulfils PRD, with 2 P0 closures + 3 P1 items
+before first live tenant.**
+
+**P0 (close before Phase A = done):**
+
+1. `skills/arabic-localization/SKILL.md` — explicitly required by
+   PRD §4.9 #8; currently missing from the `skills/` tree.
+   Content-only; no infra blocker.
+2. HITL SLA enforcement cron handler(s) — D-013 defines Standard
+   4h / Urgent 1h / Critical 15min business (paged off-hours) /
+   Marketing 24h. `vercel.json` carries only `marketing-hitl-
+   escalate`. The other three tiers have no handler.
+
+**P1 (close before first live tenant):**
+
+3. `advice_class` gatekeeping — PRD R1: only jurisdiction-
+   licensed lawyers may set `attorney_approved_advice`. Schema
+   allows the value; no runtime check enforces the licensing
+   constraint.
+4. Cross-tenant PII access guarantee — PRD §4.10 / §5.5 target
+   100%. Convention documented; no code guarantees every
+   `crossTenant: true` PII read writes the
+   `cross_tenant_pii_access` audit row.
+5. Audit-chain completeness audit — PRD §5.5 target 100%. Needs
+   a new static audit that walks every POST/PATCH/DELETE and
+   verifies it calls `writeAudit(…)` or is on an allowlist.
+   Peer of A-002 / A-005.
+
+**P2 (expand JIT per §10.10):**
+
+6. Sprint 13 / 16 / 11 plan recipes before their first commit.
+7. Monitoring runbook (UptimeRobot / Plausible / Sentry) — add
+   a §10.11 or §13.
+8. `TenantContract` machine-readable-fields shape → D-NNN when
+   Sprint 8.5 starts.
+
+**Structural alignment: solid.** Every PRD §3.1 goal maps to a
+plan sprint. Every §5.1 engineering gate has a plan owner or a
+landed audit. All 13 ratified decisions (D-007..D-019 +
+D-023/D-024/D-025/D-026) are either landed or tracked.
+
+**What's in the plan but not explicit in PRD** (flagged in
+audit §F): engineering-hygiene items (A-004 jurisdiction,
+A-005 dynamic-route, A-010 doc-discipline, A-011 KB freshness,
+CSRF + rate-limit middleware, issue-opener, env validator).
+These trace to PRD §5.1 / §5.5 targets without having their
+own PRD bullets — expected. If priority conflicts arise, PRD
+is the tie-breaker and these can be descoped.
+
+Full table-by-table analysis in `docs/prd-plan-audit.md`.
+
+---
+
 ## 2026-04-23 · Sprint 0.7.5 audit + plan-review + 3 follow-ups (lib-audits tests, /admin/status, branch-split-plan)
 
 Same branch. Final sweep on the post-0.7 cleanup sprint after the
