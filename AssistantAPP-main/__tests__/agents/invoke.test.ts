@@ -15,11 +15,15 @@ import { describe, it, expect, beforeEach, jest } from '@jest/globals'
 // Mock Prisma + audit + ai-router BEFORE importing the runtime.
 jest.mock('@/lib/db', () => ({
   getPrisma: async () => ({
-    automationLog: { create: jest.fn().mockResolvedValue({} as any) },
+    // `as never` is the jest-mock v30 workaround: `jest.fn()` with no
+    // explicit generic infers `(...args: never) => never`, so the
+    // mockResolvedValue slot is typed `never` and `as any` fails
+    // "any is not assignable to never". Issue #11 §4.
+    automationLog: { create: jest.fn().mockResolvedValue({} as never) },
   }),
 }))
 jest.mock('@/lib/audit', () => ({
-  logAuditEvent: jest.fn().mockResolvedValue(undefined as any),
+  logAuditEvent: jest.fn().mockResolvedValue(undefined as never),
 }))
 jest.mock('@/lib/ai-router', () => {
   const actual = jest.requireActual('@/lib/ai-router') as any
@@ -34,7 +38,7 @@ jest.mock('@/lib/ai-router', () => {
   }
 })
 jest.mock('@/lib/events', () => ({
-  dispatch: jest.fn().mockResolvedValue([] as any),
+  dispatch: jest.fn().mockResolvedValue([] as never),
 }))
 
 import * as breaker from '@/lib/agents/breaker'

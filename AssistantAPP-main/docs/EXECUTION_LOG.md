@@ -1087,6 +1087,99 @@ rebased onto the result. Resolved conflicts:
 
 ---
 
+## 2026-04-23 · Issue #11 safe half — zod v4 `z.record`, test-utils Session shape, jest-mock `any → never`
+
+Branch: `claude/issue-11-safe-half-9qrP3`.
+
+Closes the "safe" subset of Issue #11 (the 41 pre-existing TS
+errors that keep `legacy-checks` informational). Scope: **zod v4
+`z.record`** (2 errors), **test-utils Session shape** (1 error),
+**jest-mock `any → never`** in `invoke.test.ts` + `lib-audit.test.ts`
+(6 errors). Total: 9 errors eliminated; ~32 remain on the
+"risky half" (recharts React type drift, `lib/agents/invoke.ts`
+generics, `@prisma/client` enum re-exports + the three dependent
+miscellaneous errors in `service-types.test.ts`).
+
+**Code.**
+
+- `agents/intake/schema.ts` — `z.record(z.unknown())` →
+  `z.record(z.string(), z.unknown())`. Zod v4 requires an explicit
+  key schema for `z.record`.
+- `agents/drafting/schema.ts` — `z.record(z.string())` →
+  `z.record(z.string(), z.string())`. Same fix.
+- `test-utils/testUtils.tsx` — mock `Session` now carries `id`
+  (missing before) and the role literal is uppercased (`'admin'`
+  → `'ADMIN'` per the `Role` enum in `prisma/schema.prisma`). The
+  role is typed via `Session['user']['role']` rather than by
+  importing `Role` directly from `@prisma/client` — that direct
+  import is exactly the enum-re-export gap tracked as the Issue
+  #11 risky half. Routing through `Session['user']['role']`
+  resolves to the same `Role` type at the type-level (from
+  `types/next-auth.d.ts`) without adding a runtime dependency on
+  the generated client. Inline comment documents the choice.
+- `__tests__/agents/invoke.test.ts` — 3 × `as any` → `as never` on
+  `mockResolvedValue(...)` calls (for `automationLog.create`,
+  `logAuditEvent`, `events.dispatch`). `jest.fn()` with no
+  explicit generic infers `(...args: never) => never` under
+  `@jest/globals` v30, so the mockResolvedValue slot is typed
+  `never`. `as any` was the pre-existing workaround but now fails
+  "any not assignable to never"; `as never` is the team-convention
+  fix. One inline comment at the first site explains the pattern.
+- `__tests__/lib-audit.test.ts` — 3 × same pattern on
+  `auditLog.create` mocks: `as any` → `as never` on
+  `mockResolvedValue({ id: 'a1' } as never)`,
+  `mockRejectedValue(new Error('pg down') as never)` (the `new
+  Error(...)` slot hits the same never-typed parameter), and
+  `mockResolvedValue({} as never)`.
+
+**Not touched (explicitly deferred to the risky half).**
+
+- `__tests__/service-types.test.ts` — the issue lists it as having
+  3 jest-mock errors, but the `mockResolvedValue({ user: { id,
+  role } })` calls go through `(getServerSession as
+  jest.MockedFunction<typeof getServerSession>).mockResolvedValue(...)`,
+  which types the argument as `Session | null`. The failure there
+  is **not** `any → never` — it's a Session-shape mismatch caused
+  by the session literal missing `email`/`name`/`expires` and the
+  `role: 'STAFF'` string not matching the `Role` enum type. Fixing
+  it cleanly needs the Prisma enum re-export landed first, so
+  it's in the risky half.
+- `components/dashboard/*` (recharts React type drift),
+  `lib/agents/invoke.ts` (generic inference),
+  `lib/auth.ts` / `lib/auth/options.ts` / `prisma/seed.ts`
+  (`@prisma/client` enum re-exports), and the miscellaneous
+  `app/notifications/page.tsx` / `BillingDashboard.tsx:329`
+  errors.
+
+**Docs.**
+
+- `docs/EXECUTION_LOG.md` — this entry. No `D-NNN` — none of the
+  changes are architectural.
+- No `EXECUTION_PLAN.md` edit — §10.x sprint recipes unchanged.
+  A-010-R2 version-bump gate doesn't fire.
+
+**CI impact.** 9 of the 41 TS errors that keep `legacy-checks` at
+`continue-on-error: true` are now resolved. `npx tsc --noEmit` is
+still red on the risky half, so `legacy-checks` stays informational
+until that lands. A follow-up PR picks up the remaining ~32,
+starting with the Prisma enum re-export (which unblocks both the
+service-types test fixes and the lib/auth cleanup).
+
+**Exit criteria (this PR).** The five edited files pass
+`tsc --noEmit` individually (where "individually" means in
+isolation from the risky-half failures in other files).
+
+**Deferred.**
+
+- Issue #11 risky half — `@prisma/client` enum re-export (unblocks
+  `service-types.test.ts` + `lib/auth.ts` + `prisma/seed.ts`),
+  `@types/react` override for recharts, `lib/agents/invoke.ts`
+  generic cast, misc response-type fixes. Separate PR; probably
+  needs its own audit at the end (re-run `tsc --noEmit` on `main`,
+  confirm zero, flip `legacy-checks` to blocking).
+
+---
+
 ## Rolling open items
 
 Copied from the commits above; delete lines here as they land.

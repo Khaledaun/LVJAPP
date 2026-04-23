@@ -5,7 +5,7 @@ export const DraftingInputSchema = z.object({
   leadId: z.string().optional(),
   templateId: z.string().min(1),
   channel: z.enum(['email', 'whatsapp', 'portal', 'letter', 'internal']),
-  variables: z.record(z.string()),
+  variables: z.record(z.string(), z.string()),
   // D-015 · D-019 — locale is multi-valued from v1. AR drafting requires a
   // native AR reviewer in marketing-HITL per D-015 before client send.
   locale: z.enum(['en', 'ar', 'pt']).default('en'),
