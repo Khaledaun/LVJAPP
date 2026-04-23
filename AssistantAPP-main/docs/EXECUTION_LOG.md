@@ -1468,6 +1468,67 @@ one obvious place.
 
 ---
 
+## 2026-04-23 · Audit library refactor — `lib/audits/` modules
+
+Same branch. Mechanical refactor: the five existing audit scripts
+(`audit-auth`, `audit-dynamic`, `audit-tenant`, `audit-jurisdiction`,
+`audit-kb-staleness`) split into library + CLI pairs so the
+not-yet-written cron handlers can call the audits via a typed
+function instead of shelling out to `tsx scripts/...`. No behaviour
+change for the CLI gate — every script prints identical output and
+exits identically.
+
+**Files touched.**
+
+- `lib/audits/auth.ts` (new) — exports `runAuditAuth()` returning
+  `{ total, rows, grouped, unauthed }`. Moves `INTENTIONAL_PUBLIC`,
+  `GUARD_PATTERNS`, `STUB_PATTERNS`, `Classification`, and the
+  walker. CLI constants re-exported so edits have one home.
+- `lib/audits/dynamic.ts` (new) — exports `runAuditDynamic()`
+  returning `{ total, dbReading, staticOk, rows, violations }`.
+- `lib/audits/tenant.ts` (new) — exports `runAuditTenant()`
+  returning `{ schema, routesScanned, violations, ok, schemaErrors }`.
+  `INTENTIONAL_PUBLIC_ROUTES` moved here; the script's error
+  messages updated to point readers at the new file.
+- `lib/audits/jurisdiction.ts` (new) — exports
+  `runAuditJurisdiction()` returning `{ totalFiles, hits,
+  nonAllowlisted, perTerm }`. Self-allow-lists both the library
+  file and the CLI wrapper so it doesn't flag its own pattern
+  strings.
+- `lib/audits/kb-staleness.ts` (new) — exports
+  `runAuditKbStaleness({ now?: Date, root?: string })` with an
+  injectable clock for deterministic cron tests.
+- `scripts/audit-auth.ts`, `scripts/audit-dynamic.ts`,
+  `scripts/audit-tenant.ts`, `scripts/audit-jurisdiction.ts`,
+  `scripts/audit-kb-staleness.ts` — each reduced to a thin CLI
+  driver that imports the library entry point and prints the
+  report. Same flags (`--json`, `--strict`, `--now`), same exit
+  codes.
+
+**Why now.** The post-0.7 cleanup work on this branch shipped every
+audit as a CLI script, but the `vercel.json` crons (audit-auth-
+weekly, audit-tenant-nightly, audit-jurisdiction-weekly, audit-kb-
+staleness-weekly) have 0 handlers written. Shelling out from a
+serverless handler to `tsx scripts/…` is flaky because the
+deployment bundle may not include `tsx` and the source file under
+`scripts/`. Importing a library is correct.
+
+**Verification.** All five CLIs run clean (A-002 · 27 GUARDED / 5
+PUBLIC / 0 UNAUTHED, A-003 · 0 violations, A-005 · 25 DB / 22 static
+/ 0 violations, A-011 · 16 FRESH / 14 LEGACY, A-004 · 38 non-
+allowlisted hits in informational mode as before). A-010 doc-
+discipline passes.
+
+**Next.** Cron handlers themselves land in the next commit: each
+wraps its body in `runCron(req, async ctx => { const result =
+runAuditX(); return NextResponse.json({ ok: result..., correlationId:
+ctx.correlationId }) })`, stamped with `dynamic = 'force-dynamic'`
++ `revalidate = 0` per A-005. GitHub-issue opening on violations is
+deferred until GITHUB_TOKEN is provisioned — for now, the
+correlation id in the response header is the trail.
+
+---
+
 ## 2026-04-23 · A-011 KB freshness audit script
 
 Same branch, follow-up to D-026. Ships the audit that D-026 just
