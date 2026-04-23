@@ -1468,6 +1468,50 @@ one obvious place.
 
 ---
 
+## 2026-04-23 · P0.2 · HITL SLA enforcement cron (`/api/cron/hitl-sla-sweep`)
+
+Same branch. Closes the second P0 gap from the PRD↔Plan audit.
+D-013 defines four HITL SLA tiers; only Marketing (24h) had a
+`vercel.json` slot and no handler. Standard / Urgent / Critical
+had neither.
+
+**Design choice: one sweep, all tiers.** `HITLApproval.slaDueAt`
+is set at creation time from the gate's `slaHours`, so a single
+`WHERE slaDueAt < now AND status = PENDING` correctly catches
+all four tiers. Separate per-tier crons would've done the same
+work 4× with no behavioural difference. 15-minute cadence is
+driven by the Critical tier (15min business-hours SLA); every
+other tier gets caught well inside its window.
+
+**Files touched.**
+
+- `app/api/cron/hitl-sla-sweep/route.ts` (new) — wraps the body
+  in `runCron`, calls `expireStale()` from `lib/agents/hitl.ts`
+  (already existed), returns `{ expired: N }` JSON. Dynamic
+  Prisma import so `SKIP_DB=1` skips the DB pull entirely.
+  500 on sweep throw (explicit so it's distinguishable from
+  `runCron` 401 / 500-misconfigured).
+- `vercel.json` — replaced `/api/cron/marketing-hitl-escalate`
+  (schedule `0 */1 * * *`, no handler) with `/api/cron/hitl-sla-
+  sweep` (schedule `*/15 * * * *`). The marketing tier is
+  caught inside the unified sweep.
+- `__tests__/api-cron-hitl-sla-sweep.test.ts` (new) — 4 cases:
+  SKIP_DB=1 short-circuit returns `{ expired: 0, skipped:
+  'SKIP_DB' }`; 401 on missing bearer in prod; X-Correlation-Id
+  stamped on success; A-005 force-dynamic guard.
+
+**Deferred (separate PR when pager integration lands):**
+
+- Per-tier telemetry (which tier each expired row belonged to —
+  needs JOIN back to agent manifest).
+- Off-hours pager for Critical tier (D-013 calls for it;
+  integration with PagerDuty / Slack hasn't been chosen yet).
+- Issue-opener integration — today the sweep's expiry count is
+  visible in Vercel logs; when the admin/approvals page grows
+  a "recently expired" pane, that's the surface.
+
+---
+
 ## 2026-04-23 · P0.1 · Arabic localization skill (`skills/arabic-localization/SKILL.md`)
 
 Same branch. Closes the first P0 gap from the PRD↔Plan audit.
