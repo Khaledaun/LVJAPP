@@ -1045,6 +1045,49 @@ timeout risks.
 - **Smoke battery.** S-001, S-002, S-010 required green.
 - **Exit criteria.** Visual regression baseline recorded for EN + AR.
 
+### 10.4.1 Sprint 0.7.5 — post-0.7 cleanup (landed)
+
+- **Branch.** `claude/post-0.7-a-005-dynamic-audit-X4mBc`.
+- **Goal.** Close the post-0.7 deferred list (CSRF middleware,
+  rate-limit middleware, `runCron`, `/api/agents/bootstrap`,
+  preflight, D-026 numbering reconciliation) plus the scaffolding
+  that enables the first 4 audit cron handlers + the cron issue-
+  opener + the env validator + A-011.
+- **Entry criteria.** 0.7 merged; D-025 accepted.
+- **Deliverables.**
+  1. `scripts/audit-dynamic.ts` + `lib/audits/dynamic.ts` (A-005).
+  2. `lib/cron.ts` (`runCron(req, cb)` + `CRON_SECRET` bearer).
+  3. `lib/csrf.ts` + `middleware.ts` wiring (`CSRF_MODE` staircase,
+     no content-type exemption).
+  4. `lib/rate-limit.ts` + `middleware.ts` wiring (`RATE_LIMIT_MODE`
+     staircase, rightmost XFF).
+  5. `/api/agents/bootstrap/route.ts` + idempotent
+     `orchestrator.subscribeAgent`.
+  6. 4 cron audit handlers under `/api/cron/audit-*/route.ts`
+     (auth weekly, tenant nightly, jurisdiction weekly,
+     kb-staleness weekly).
+  7. `lib/audits/issue-opener.ts` — GitHub REST issue opener with
+     `cron-audit,<auditId>` dedupe.
+  8. `.github/workflows/a008-deps.yml` + `a010-doc-discipline.yml`
+     (audits that need full git + dep tree live in Actions, not
+     Vercel cron).
+  9. `lib/env-validate.ts` + `scripts/check-env.ts` +
+     `scripts/preflight.sh`.
+  10. A-011 `scripts/audit-kb-staleness.ts` +
+      `lib/audits/kb-staleness.ts` + 14 `SKILL.md` v0.1 migrations.
+  11. D-026 audit numbering reconciliation (plan 1.1 → 1.2).
+  12. `e2e-tests/csrf-smoke.spec.ts` (auto-skip unless enforce).
+- **Smoke battery.** S-003, S-009, S-010, S-013 (CSRF) — all
+  required green.
+- **Exit criteria.** Every audit gate green; A-002 31/5/0/0;
+  A-003 0 violations; A-005 0 violations; A-010 clean; A-011
+  30 FRESH. No UNAUTHED routes; no rewrites to any accepted
+  D-NNN body.
+- **Consequences.** CSRF_MODE / RATE_LIMIT_MODE / AGENT_* flags
+  all default OFF — deploy behaviour byte-identical until an
+  operator flips them. The flip runbook is in the branch's
+  EXECUTION_LOG entry "CSRF middleware rollout".
+
 ### 10.5 Sprint 8.5 — self-serve onboarding (incl. Stripe Connect Express)
 
 - **Goal.** A new tenant or provider can sign up, accept contract,

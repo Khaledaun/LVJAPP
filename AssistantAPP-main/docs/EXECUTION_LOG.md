@@ -1468,6 +1468,66 @@ one obvious place.
 
 ---
 
+## 2026-04-23 · Project documentation refresh + progress snapshot
+
+Same branch. Two docs updates to consolidate what the post-0.7
+cleanup sprint delivered:
+
+**Files touched.**
+
+- `docs/SESSION_NOTES.md` — prepended a post-0.7-cleanup entry
+  summarising the 13 deliverable categories, the progress
+  snapshot, what's deliberately off the branch, and next-session
+  priorities (merge / split, flag flips, infra provisioning,
+  Supabase-connect PR).
+- `docs/EXECUTION_PLAN.md` §10.4.1 (new) — "Sprint 0.7.5 — post-
+  0.7 cleanup (landed)" formalised as a sprint entry between §10.4
+  (Sprint 0.7) and §10.5 (Sprint 8.5). Lists the 12 deliverables
+  + smoke battery + exit criteria + the flag-flip consequence
+  note.
+- `docs/EXECUTION_LOG.md` — this entry.
+
+**Progress snapshot.** Weighted against the 22-sprint roadmap in
+`Claude.md` + the 11-audit / 13-smoke catalogues in
+`EXECUTION_PLAN` §2.1 / §3.2:
+
+| Axis                                          | Complete | Notes                                         |
+|-----------------------------------------------|---------:|-----------------------------------------------|
+| Audit framework (11 audits)                   |     ~82% | 9/11 live. A-006 + A-007 pending (DB).        |
+| Cron handlers (9 declared + 2 GH Actions)     |     ~55% | 6/11 live (4 Vercel + 2 Actions). 5 DB-blocked.|
+| Smoke suite (13 planned)                      |     ~31% | S-003/009/010/013 live; rest per sprint.      |
+| Sprints shipped (22 declared)                 |     ~40% | 0, 0.1, 0.5, 0.5.1, 0.7, 0.7-bis, 0.7.5 done; 1 partial; 2+ scaffolded. |
+| Engineering infrastructure                    |     ~85% | audits/CI/tenancy/i18n/RBAC/CSRF/rate-limit/cron/env all done. |
+| Product features wired to real data           |     ~25% | UI exists, data layer blocks on Supabase.     |
+| Integration layer (Stripe/Webflow/Twilio/EL)  |     ~15% | Webflow webhook only.                         |
+| Agent OS runtime                              |     ~50% | registered + orchestrator + bootstrap; flags off. |
+| Production readiness                          |     ~35% | CI gates green; needs infra + flag flips.     |
+
+**Weighted aggregate estimate: ~45% of the full roadmap is
+complete.** The remaining 55% splits roughly:
+
+- ~25% ops / infra provisioning (operator action; Supabase
+  connect, Upstash, Stripe test keys, Webflow token, ElevenLabs
+  voice ids, SendGrid + Twilio creds).
+- ~20% feature integration that requires the above + product
+  decisions (Sprints 2-8 data wiring, Sprint 8.5 onboarding,
+  Sprint 13 marketing automation).
+- ~10% advanced features (mobile Sprint 14, outcome predictor
+  Sprint 11, marketplace billing Sprint 15, GDPR tooling Sprint
+  16).
+
+**Interpretation.** The project is past its engineering-skeleton
+phase: every audit, every guardrail, every piece of doc-discipline
+scaffolding, every cron plumbing piece is either shipped or
+unblocked. What remains is product-feature wiring that needs a
+live Postgres and product decisions, plus ops flag flips that
+are operator-triggered. Claude Code can continue to make
+progress on any integration that doesn't need credentials or
+database rows — route tests, CSRF/rate-limit flip rehearsals,
+issue-opener dry-run validation, documentation, etc.
+
+---
+
 ## 2026-04-23 · Tests for `/api/agents/bootstrap`
 
 Same branch. The earlier bootstrap commit shipped the route +
