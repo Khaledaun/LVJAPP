@@ -3,6 +3,9 @@ import { getPrisma } from '@/lib/db';
 import { runAuthed } from '@/lib/rbac-http';
 import { isStaff } from '@/lib/rbac';
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function POST(
   req: Request,
   { params }: { params: { id: string } }

@@ -148,7 +148,7 @@ export async function invoke<I, O>(
 // Internals
 // ────────────────────────────────────────────────────────────────
 
-function isFeatureFlagEnabled(flag: string): boolean {
+export function isFeatureFlagEnabled(flag: string): boolean {
   const v = process.env[flag]
   if (!v) return false
   return v === '1' || v.toLowerCase() === 'true' || v.toLowerCase() === 'yes'

@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
 import { runAuthed } from "@/lib/rbac-http";
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 const generateInvoiceNumber = () => `INV-${Date.now()}`;
 
 export async function POST(req: Request) {

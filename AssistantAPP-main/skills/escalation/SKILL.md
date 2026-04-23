@@ -3,6 +3,9 @@ domain: escalation
 owner: platform-engineering
 jurisdiction: n/a
 confidence: draft
+id: escalation.skill.root
+reviewed_at: 2026-04-22
+review_ttl_days: 90
 review_ttl: 2026-07-22
 motivated_by:
   - Decision D-013 HITL escalation tiers

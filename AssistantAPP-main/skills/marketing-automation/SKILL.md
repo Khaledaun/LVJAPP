@@ -3,6 +3,9 @@ domain: marketing-automation
 owner: platform-marketing
 jurisdiction: EU-PT primary; UAE secondary
 confidence: draft
+id: marketing-automation.skill.root
+reviewed_at: 2026-04-22
+review_ttl_days: 90
 review_ttl: 2026-07-22
 motivated_by:
   - PRD v0.3 §4.8 Marketing & content

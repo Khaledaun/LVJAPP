@@ -3,6 +3,9 @@ domain: onboarding
 owner: platform-admin
 jurisdiction: n/a
 confidence: draft
+id: onboarding.skill.root
+reviewed_at: 2026-04-22
+review_ttl_days: 90
 review_ttl: 2026-07-22
 motivated_by:
   - PRD v0.3 §3.1 goal 8 (self-serve onboarding)

@@ -4,6 +4,9 @@ import { sendIntakeNotification, mockIntakeNotification } from "@/lib/notificati
 import { runAuthed } from "@/lib/rbac-http";
 import { isStaff } from "@/lib/rbac";
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 // GET — list cases accessible to the session user.
 export async function GET(req: Request) {
   return runAuthed('authed', async (user) => {

@@ -1,0 +1,132 @@
+# A-010 · Doc-discipline weekly sweep (EXECUTION_PLAN §2.5)
+#
+# The per-PR gate already runs `scripts/lint-docs.ts` against every
+# PR (see `.github/workflows/ci.yml` gates job), so live PRs can't
+# merge while violating the four A-010 rules. This weekly sweep
+# audits landed `main` against `origin/main~7` to surface:
+#
+#   - PRs that somehow slipped the gate (should be zero, but detect
+#     if it ever isn't).
+#   - Doc drift from commits landing via tooling that skips the gate
+#     (force-pushes, admin merges).
+#
+# Same rationale as A-008: lives here, not in Vercel cron, because
+# it needs git history + `origin/main` fetch.
+
+name: a010-doc-discipline
+
+on:
+  schedule:
+    # Sun 04:30 UTC — matches EXECUTION_PLAN §2.5 row
+    # `cron/audit-doc-discipline-weekly`.
+    - cron: '30 4 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+defaults:
+  run:
+    working-directory: AssistantAPP-main
+
+jobs:
+  audit:
+    name: A-010 · doc-discipline (weekly sweep)
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout (full history for git-diff)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: AssistantAPP-main/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run A-010 audit against the last 7 days of main
+        id: audit
+        run: |
+          # Oldest commit in the past 7 days on origin/main.
+          BASE=$(git -C . log origin/main --since='7 days ago' --reverse --format='%H' | head -n 1)
+          if [ -z "$BASE" ]; then
+            # No commits in the last 7 days — nothing to sweep.
+            echo "no commits in window; skipping"
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+          echo "Auditing $BASE → origin/main"
+          npm run -s audit:docs:json -- --base "$BASE" --head origin/main > docs-audit.json
+          FAILS=$(node -e "console.log(JSON.parse(require('fs').readFileSync('docs-audit.json','utf8')).failures.length)")
+          echo "failures=$FAILS" >> "$GITHUB_OUTPUT"
+
+      - name: Open / update issue on rule violations
+        if: steps.audit.outputs.skipped != 'true' && steps.audit.outputs.failures != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs')
+            const report = JSON.parse(fs.readFileSync('AssistantAPP-main/docs-audit.json', 'utf8'))
+            const base = '${{ steps.audit.outputs.base }}'
+            const title = `[a010] doc-discipline drift · ${new Date().toISOString().slice(0,10)}`
+            const labels = ['cron-audit', 'a010']
+
+            const lines = [
+              '## A-010 · weekly doc-discipline sweep',
+              '',
+              `Window: \`${base}\` → \`origin/main\``,
+              `Changed files: ${report.changedFiles?.length ?? 0}`,
+              `Violations: ${report.failures.length}`,
+              '',
+            ]
+            for (const f of report.failures) {
+              lines.push(`- **${f.rule}** — ${f.detail}`)
+            }
+            const body = lines.join('\n')
+
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: labels.join(','),
+              per_page: 100,
+            })
+            const hit = existing.data.find(i => i.title.startsWith('[a010]'))
+            if (hit) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: hit.number,
+                body,
+              })
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels,
+              })
+            }
+
+      - name: Fail workflow on any violation
+        if: steps.audit.outputs.skipped != 'true' && steps.audit.outputs.failures != '0'
+        run: |
+          echo "::error::A-010 · ${{ steps.audit.outputs.failures }} doc-discipline violation(s) landed on main in the last 7 days."
+          exit 1
+
+      - name: Upload JSON report
+        if: always() && steps.audit.outputs.skipped != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: doc-discipline-sweep
+          path: AssistantAPP-main/docs-audit.json
+          retention-days: 30

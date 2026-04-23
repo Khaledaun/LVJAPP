@@ -22,14 +22,6 @@
       "schedule": "5 0 * * *"
     },
     {
-      "path": "/api/cron/audit-deps-weekly",
-      "schedule": "0 4 * * 0"
-    },
-    {
-      "path": "/api/cron/audit-doc-discipline-weekly",
-      "schedule": "30 4 * * 0"
-    },
-    {
       "path": "/api/cron/deadline-alert",
       "schedule": "5 0 * * *"
     },

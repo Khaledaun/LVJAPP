@@ -24,11 +24,23 @@ interface RouteEntry {
 }
 
 const routes: RouteEntry[] = []
+const subscribed = new Set<string>()
 
-/** Register an agent's triggers with the event bus. */
+/**
+ * Register an agent's triggers with the event bus.
+ *
+ * Idempotent: a second call for the same `agentId` is a no-op. The
+ * bootstrap route (`/api/agents/bootstrap`) and any cron-driven cold-
+ * start re-binding rely on this — `on()` in `lib/events.ts` appends
+ * handlers without deduping, so re-calling the un-guarded subscribe
+ * would fire each trigger twice.
+ */
 export function subscribeAgent(agentId: string): void {
   const manifest = getManifest(agentId)
   if (!manifest) throw new Error(`subscribeAgent: unknown agent "${agentId}"`)
+
+  if (subscribed.has(agentId)) return
+  subscribed.add(agentId)
 
   for (const trigger of manifest.triggers) {
     const handlerId = `agent.${agentId}.trigger.${trigger}`
@@ -87,7 +99,18 @@ export function listRoutes(): Readonly<RouteEntry[]> {
   return routes
 }
 
+/** Has this agent been bound to the event bus? */
+export function isSubscribed(agentId: string): boolean {
+  return subscribed.has(agentId)
+}
+
+/** Subscribed agent ids, sorted — for the bootstrap route's response. */
+export function listSubscribed(): string[] {
+  return [...subscribed].sort()
+}
+
 /** Tests only. */
 export function clearRoutes(): void {
   routes.length = 0
+  subscribed.clear()
 }

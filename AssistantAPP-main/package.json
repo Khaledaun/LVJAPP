@@ -23,8 +23,15 @@
     "playwright:install": "playwright install",
     "audit:auth": "tsx scripts/audit-auth.ts",
     "audit:auth:json": "tsx scripts/audit-auth.ts --json",
+    "audit:dynamic": "tsx scripts/audit-dynamic.ts",
+    "audit:dynamic:json": "tsx scripts/audit-dynamic.ts --json",
     "audit:jurisdiction": "tsx scripts/audit-jurisdiction.ts",
     "audit:jurisdiction:json": "tsx scripts/audit-jurisdiction.ts --json",
+    "audit:kb": "tsx scripts/audit-kb-staleness.ts",
+    "audit:kb:json": "tsx scripts/audit-kb-staleness.ts --json",
+    "audit:kb:strict": "tsx scripts/audit-kb-staleness.ts --strict",
+    "env:check": "tsx scripts/check-env.ts",
+    "env:check:json": "tsx scripts/check-env.ts --json",
     "audit:docs": "tsx scripts/lint-docs.ts",
     "audit:docs:json": "tsx scripts/lint-docs.ts --json",
     "audit:prisma": "tsx scripts/audit-prisma.ts",
@@ -33,7 +40,8 @@
     "smoke:auth": "playwright test e2e-tests/auth-smoke.spec.ts",
     "smoke:locale": "playwright test e2e-tests/locale-smoke.spec.ts",
     "smoke:webflow": "playwright test e2e-tests/webflow-webhook-smoke.spec.ts",
-    "smoke": "npm run audit:auth && playwright test e2e-tests/auth-smoke.spec.ts e2e-tests/locale-smoke.spec.ts e2e-tests/webflow-webhook-smoke.spec.ts"
+    "smoke:csrf": "playwright test e2e-tests/csrf-smoke.spec.ts",
+    "smoke": "npm run audit:auth && playwright test e2e-tests/auth-smoke.spec.ts e2e-tests/locale-smoke.spec.ts e2e-tests/webflow-webhook-smoke.spec.ts e2e-tests/csrf-smoke.spec.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",

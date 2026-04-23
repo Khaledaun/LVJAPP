@@ -1180,13 +1180,868 @@ isolation from the risky-half failures in other files).
 
 ---
 
+## 2026-04-23 · Post-0.7 cleanup — A-005 dynamic-route audit (D-025 item 4)
+
+Branch: `claude/post-0.7-a-005-dynamic-audit-X4mBc`.
+
+First slice of the post-Sprint-0.7 cleanup backlog. Lands the
+dynamic-route audit that D-025 item 4 reserves as a required gate
+from day 1, because static pre-render + middleware auth is a
+silent bypass — middleware runs on the *request* but Next.js
+serves the cached *response*, so a DB-reading handler that doesn't
+opt out of caching leaks data across sessions regardless of what
+`middleware.ts` decides.
+
+**Files touched.**
+
+- `scripts/audit-dynamic.ts` — new. Walks `app/` for `route.ts(x)`
+  and `page.tsx`, classifies each as DB_READING or STATIC_OK via a
+  static marker scan (`@/lib/db` import, `getPrisma(`,
+  `runAuthed(`, `runPlatformOp(`, `prisma.*` call). For DB_READING
+  files, requires both `export const dynamic = 'force-dynamic'`
+  and `export const revalidate = 0`. Exits 1 on any violation,
+  with a per-file reason table. `INTENTIONAL_STATIC` allowlist is
+  empty today; each future entry must carry a written
+  justification.
+- `package.json` — `audit:dynamic` + `audit:dynamic:json` scripts
+  alongside `audit:auth` / `audit:tenant`.
+- `.github/workflows/ci.yml` — new required step in the `gates`
+  job (`A-005 · dynamic-route audit (D-025 item 4)`), wired
+  between `audit:auth` and the informational `audit:jurisdiction`.
+  Header comment updated.
+- `app/api/cases/route.ts`,
+  `app/api/cases/[id]/route.ts`,
+  `app/api/cases/[id]/external-partners/route.ts`,
+  `app/api/partner-roles/route.ts`,
+  `app/api/payments/simple/route.ts`,
+  `app/api/service-types/route.ts`,
+  `app/api/service-types/[id]/route.ts` — added
+  `export const dynamic = 'force-dynamic'` +
+  `export const revalidate = 0` directly after the imports. All
+  seven import `getPrisma` and use `runAuthed`, so they were real
+  violations waiting to fire the moment Supabase connects.
+- `app/api/audit/route.ts` — added `revalidate = 0`; already had
+  `force-dynamic` but not the pair.
+- `docs/DECISIONS.md` — marked the D-025 `audit-dynamic.ts`
+  follow-up landed.
+- `docs/EXECUTION_LOG.md` — this entry; open-item line for the
+  post-0.7 cleanup narrowed to the remaining sub-items.
+
+**Audit result.**
+
+`npm run audit:dynamic` scans 47 files under `app/`, 25 DB_READING
+/ 22 STATIC_OK, 0 violations. Re-runs are idempotent.
+
+**What this audit does NOT catch.**
+
+- Transitive DB reads through un-annotated helpers (e.g. a
+  `lib/util.ts` that eventually calls `prisma.x.findMany`). Keep
+  the direct-marker contract — detecting transitivity would
+  require a full module graph and produce false positives on
+  every shared helper. The answer when it comes up is to annotate
+  the entry points, not to widen the audit.
+- Runtime `dynamic = 'auto'` routes that happen to return the same
+  body every time. The audit is conservative on purpose; caching
+  behaviour is too contextual to encode statically.
+
+**Deferred (rest of the post-0.7 cleanup).**
+
+- `scripts/preflight.sh` — KhaledAunSite-digest crib for the
+  five-item D-025 checklist on `supabase db push`.
+- CSRF content-type-exemption verification.
+- Rightmost-XFF rate-limiter verification.
+- `runCron(req, cb)` helper so `/api/cron/*` stops leaning on the
+  A-002 public allow-list.
+
+---
+
+## 2026-04-23 · Post-0.7 cleanup — `runCron` helper + `scripts/preflight.sh`
+
+Same branch (`claude/post-0.7-a-005-dynamic-audit-X4mBc`). Two
+follow-up items from the post-0.7 deferred list land here; CSRF /
+XFF verification stays deferred because the code under audit
+(CSRF middleware, rate-limit middleware) hasn't landed yet — SESSION_
+NOTES pass-2 item 9's "runCron not on the public allow-list" fix
+was the actionable half, and we take it now.
+
+**Files touched.**
+
+- `lib/cron.ts` — new. `runCron(req, cb)` wraps `/api/cron/*`
+  handlers: verifies `Authorization: Bearer ${CRON_SECRET}` in
+  constant time, generates a `correlationId` per invocation, stamps
+  `X-Correlation-Id` on the response, turns handler throws into
+  500 `cron_failed` (not 200 + error body, so Vercel retries on
+  transient failures). Dev loops with `SKIP_AUTH=1` /
+  `SKIP_DB=1` bypass the bearer check. Production without
+  `CRON_SECRET` returns 500 `cron_misconfigured` instead of 401 so
+  infra drift pages an operator.
+- `scripts/audit-auth.ts` — `runCron` added to `GUARD_PATTERNS` so
+  a cron handler using the helper counts as GUARDED, not
+  INTENTIONAL_PUBLIC. When the first `app/api/cron/*/route.ts`
+  lands, it wraps its body in `runCron` and stays off the
+  public allow-list.
+- `lib/env.ts` — `CRON_SECRET` added to `ENV`. Optional in dev
+  (empty fallback), required in prod (empty fallback + runtime
+  check in `lib/cron.ts`).
+- `__tests__/lib-cron.test.ts` — new. Covers the 7 paths:
+  misconfigured (prod + no secret), missing bearer, wrong bearer,
+  happy path, `SKIP_AUTH=1` bypass, handler throw, constant-time
+  compare on equal-length mismatches.
+- `scripts/preflight.sh` — new. Adapted from
+  `docs/xrepo/khaledaunsite/03-operations-and-deployment.md §Preflight`
+  to LVJ's actual toolchain (npm, not pnpm; audits instead of raw
+  psql; no Supabase connect yet). Required block mirrors the CI
+  `gates` job (A-002, A-003, A-005, A-004, + git cleanliness +
+  feature-branch check). Soft block runs tsc / lint / jest / build
+  + the `origin/main`-diffing Prisma / doc audits; failures print
+  but don't gate. Two `SKIP` lines for DB-reachability so the
+  deferred items remain visible. Flags: `--skip-install` (reuse
+  prior `npm ci`), `--json` (machine-readable summary).
+- `docs/DECISIONS.md` — D-025 follow-up: `preflight.sh` marked
+  landed with scope notes; `CRON_SECRET` marked already wired.
+- `docs/EXECUTION_LOG.md` — this entry; open-item for the post-0.7
+  cleanup narrowed to the still-deferred CSRF/XFF verifications.
+
+**Still deferred (post-0.7, blocked on feature code).**
+
+- CSRF content-type-exemption verification — waits on the CSRF
+  middleware itself. When it lands, a smoke spec asserts a POST
+  with no `Content-Type` still gets rejected.
+- Rightmost-XFF rate-limiter verification — waits on the rate-limit
+  middleware. When it lands, a unit test asserts the *rightmost*
+  value of a multi-hop `X-Forwarded-For` is the bucket key.
+
+---
+
+## 2026-04-23 · Post-0.7 cleanup — CSRF + rate-limit scaffolding (closes the deferred list)
+
+Same branch. Closes the last two items on the post-0.7 deferred
+list by shipping the minimum viable form of each middleware plus
+the verification tests the cleanup list originally asked for. No
+route wiring yet — the helpers sit in `lib/` ready to be inlined
+at route entry points, and once every state-changing handler is
+verified to carry `Origin`, CSRF moves into `middleware.ts` under
+an `/api/:path*` matcher.
+
+**Files touched.**
+
+- `lib/csrf.ts` — new. `assertCsrf(req)` returns `null` on pass or
+  a 403 `Response` on fail. Same-origin check via `Origin`
+  (authoritative when present) with `Referer`-origin fallback for
+  browsers that strip Origin. Explicit skip list for
+  `/api/auth/*` (NextAuth owns CSRF), `/api/webhooks/*` (HMAC),
+  `/api/cron/*` (CRON_SECRET bearer). `SKIP_AUTH=1` bypasses in
+  dev / CI; ignored in prod. `classifyCsrf` exported for tests.
+  **No content-type exemption** — a cross-origin
+  `application/json` POST is rejected exactly like a form POST.
+- `lib/rate-limit.ts` — new. `clientKey(req, userId?)` picks
+  userId > `x-real-ip` > **rightmost** `X-Forwarded-For` >
+  `ip:unknown`. `checkRateLimit(key, { limit, windowMs })` is a
+  fixed-window counter against an in-memory Map; `__reset` hook
+  for tests; `now` injectable for deterministic window tests.
+  The prod Upstash backend mounts behind the same signature when
+  that PR lands.
+- `__tests__/lib-csrf.test.ts` — new. 10 cases proving:
+  safe-methods pass, same-origin POST passes, cross-origin POST
+  fails with `csrf_origin_mismatch`, **JSON content-type is NOT
+  exempt** (the explicit verification the cleanup list asked
+  for), Referer fallback works, no-Origin-no-Referer fails,
+  skip paths bypass, `SKIP_AUTH=1` bypass is dev-only,
+  `expectedOrigin` override works for reverse proxies.
+- `__tests__/lib-rate-limit.test.ts` — new. 11 cases. Key focus:
+  **rightmost XFF is the bucket**, with spoof-resistant
+  assertions (leftmost `1.1.1.1` is ignored in
+  `'1.1.1.1, 2.2.2.2, 3.3.3.3'`). Plus: x-real-ip precedence,
+  window-reset behaviour, per-key isolation, `retryAfterMs`
+  accuracy.
+- `docs/EXECUTION_LOG.md` — this entry. Rolling open item for the
+  post-0.7 cleanup closed.
+
+**What this commit does NOT do (deliberately).**
+
+- Wire `assertCsrf` into `runAuthed` or `middleware.ts`. Doing
+  that now would break every existing POST smoke-test that
+  doesn't set `Origin` (including the Playwright suite). Flag-
+  gated rollout is a follow-up — track it as a new open item.
+- Ship the Upstash backend for `checkRateLimit`. That PR lands
+  with the Upstash env vars and a prod smoke.
+- Write a lint rule to force every POST/PUT/PATCH/DELETE handler
+  to call `assertCsrf`. Punted until the rollout is flag-gated
+  and proven non-breaking.
+
+---
+
+## 2026-04-23 · CSRF middleware rollout — flag-gated (off → report-only → enforce)
+
+Same branch. Wires `applyCsrf` into `middleware.ts` under a new
+`/api/:path*` matcher entry, but defaults to `CSRF_MODE=off` so
+behaviour is byte-identical until the flag flips. The
+`off → report-only → enforce` staircase mirrors the CSP rollout
+pattern in `docs/xrepo/khaledaunsite/04-security-and-compliance.md`
+("CSP report-only first, enforce after a week of clean reports"),
+and gives us one week in each staging tier to catch any browser
+client / curl invocation / internal tool that doesn't send Origin
+before hard-failing real users.
+
+**Files touched.**
+
+- `lib/csrf.ts` — added `csrfMode()` (reads `CSRF_MODE` env,
+  normalises `report_only` / `report-only` / `report` to
+  `report-only`, returns `off` otherwise) and `applyCsrf(req)` —
+  the middleware entry point. `off` is a no-op; `report-only`
+  logs a structured `[csrf] report-only: …` line with method /
+  path / verdict / origin / referer; `enforce` returns the 403
+  from `assertCsrf`. `CsrfVerdict` type extracted so callers can
+  switch on it.
+- `middleware.ts` — split the API and page surfaces. API paths
+  (`/api/*`) run `applyCsrf` only; `withAuth` is intentionally
+  NOT applied to `/api/*` because API routes return 401 JSON via
+  `runAuthed` and redirecting to `/signin` would break non-
+  browser clients. Page paths keep the existing withAuth +
+  locale-cookie flow. Matcher gains `'/api/:path*'`.
+- `__tests__/lib-csrf.test.ts` — 6 new cases covering
+  `csrfMode` parsing, `off` passthrough, `report-only` warn-
+  without-block, `enforce` 403, and same-origin passthrough in
+  enforce mode.
+- `docs/EXECUTION_LOG.md` — this entry. Rolling open item for
+  the CSRF middleware wiring closed; new item tracks the flag-
+  flip staircase.
+
+**Rollout plan (track in SESSION_NOTES when we start it).**
+
+1. Staging: set `CSRF_MODE=report-only`. Leave a week. Grep
+   Vercel logs for `[csrf] report-only` and fix any false
+   positives (legitimate clients not sending Origin).
+2. Staging: set `CSRF_MODE=enforce`. Re-run the Playwright smoke
+   suite and the manual QA matrix.
+3. Prod: set `CSRF_MODE=enforce`. Keep the staging flag as-is.
+
+---
+
+## 2026-04-23 · Agent bootstrap endpoint — `/api/agents/bootstrap`
+
+Same branch. Closes the "Bootstrap the Orchestrator from a server
+entry point" rolling item. The Phase-1 agent runtime has been
+registered-at-import-time since Sprint 0.4, but `subscribeAgent`
+(which binds manifest triggers to the event bus) was never called,
+so the agents existed but didn't react. This adds the call site —
+staff-guarded, idempotent, flag-gated.
+
+**Files touched.**
+
+- `lib/agents/orchestrator.ts` — `subscribeAgent` is now idempotent.
+  `on()` in `lib/events.ts` appends without dedup, so a re-call
+  would double every trigger handler; we now short-circuit on a
+  per-agent `subscribed` Set. New exports: `isSubscribed(id)`,
+  `listSubscribed()`. `clearRoutes()` wipes both routes array and
+  the subscribed set (tests only).
+- `lib/agents/invoke.ts` — `isFeatureFlagEnabled` exported so the
+  bootstrap route shares the exact same flag-parsing semantics
+  (`1` / `true` / `yes`, case-insensitive) as the invoke runtime.
+  No behaviour change inside `invoke`.
+- `app/api/agents/bootstrap/route.ts` — new. Staff-guarded POST
+  iterates `['intake', 'drafting', 'email']`, calls
+  `subscribeAgent(id)` for each whose `featureFlag` env is
+  truthy and isn't already subscribed. Returns
+  `{ bootstrapped, skippedDisabled, skippedAlreadyBound,
+  skippedUnknown, subscribed }` so operators can verify the
+  binding took. GET is read-only introspection of flag state +
+  current subscriptions. Both methods declare
+  `dynamic = 'force-dynamic'` + `revalidate = 0` per A-005.
+- `__tests__/agents/orchestrator-subscribe.test.ts` — new. 5
+  cases: first-call binds, second-call is a no-op (the
+  regression that motivated idempotency), independent agents
+  bind independently, unknown id throws, `clearRoutes` wipes
+  both structures and allows rebind.
+- `docs/EXECUTION_LOG.md` — this entry.
+
+**Behavioural change.** Zero for users: flags default OFF in every
+environment. The only observable difference is `/api/agents/
+bootstrap` exists. Flipping a flag + POSTing is the arming step.
+
+**Why a route, not a module init.** Next.js App Router doesn't
+provide a "server startup" hook — module-level side-effects run
+on the first request that needs them, which is too implicit for
+an ops-visible step like "the agents are armed". A route call
+site is grep-able in logs and CI, and it keeps the flag check in
+one obvious place.
+
+---
+
+## 2026-04-23 · Tests for `/api/agents/bootstrap`
+
+Same branch. The earlier bootstrap commit shipped the route +
+idempotent `subscribeAgent` + 5 orchestrator-level tests, but no
+direct coverage of the route handler. Adds the missing layer.
+
+**File.**
+
+- `__tests__/api-agents-bootstrap.test.ts` (new) — 8 cases:
+  empty-flags default, single-flag bind, idempotent re-POST
+  reports `skippedAlreadyBound`, multi-flag bind, `'1' | 'true'
+  | 'yes'` case-insensitive parsing (and rejection of everything
+  else, including `'false'`), GET introspection doesn't mutate,
+  GET-after-POST reflects subscription, static assertion on
+  `dynamic = 'force-dynamic'` + `revalidate = 0` (A-005 guard
+  for the route).
+
+Uses `SKIP_AUTH=1` + `SKIP_DB=1` to short-circuit `runAuthed` at
+the unit level; a full e2e test would be a Playwright spec, but
+the route's logic is mostly in the flag-parser and the
+orchestrator mutation path, both exhaustively covered here.
+
+---
+
+## 2026-04-23 · Refresh EXECUTION_PLAN §12 checklist to post-0.7 reality
+
+Same branch. §12.1 (tooling checklist) was out of date — it listed
+`scripts/audit-tenant.ts` as `[ ]` (actually landed Sprint 0.5.1)
+and omitted every post-0.7 file landed on this branch (cron
+handlers, lib/cron, lib/csrf, lib/rate-limit, lib/audits/*,
+issue-opener, preflight, env validator, A-008/A-010 GitHub
+Actions). §12.5 still pointed at a merged PR's branch name. Both
+refreshed.
+
+**Files touched.**
+
+- `docs/EXECUTION_PLAN.md` §12.1 — tooling checklist brought up
+  to date. Smoke row downgraded `[ ]` → `[~]` (partial — S-003 /
+  S-009 / S-010 / CSRF live in e2e-tests; the remaining S-001/2/
+  4-8/11-13 land per their respective sprints).
+- `docs/EXECUTION_PLAN.md` §12.5 — fresh next actions aligned
+  with the post-0.7 cleanup state: flip CSRF_MODE / RATE_LIMIT_MODE
+  on staging, provision CRON_SECRET + GITHUB_TOKEN, Supabase
+  connect (D-025), DB-dependent cron handlers, Issue #11 risky
+  half.
+
+Plan stays at v1.2 (bumped in D-026 earlier in this PR). A-010-R2
+passes since base-to-head diff already carries the version bump.
+
+---
+
+## 2026-04-23 · Env validator — `lib/env-validate.ts` + `npm run env:check`
+
+Same branch. Fail-fast-at-the-right-layer for the ops flags
+scattered across the codebase (CRON_SECRET, CSRF_MODE,
+RATE_LIMIT_MODE, GITHUB_TOKEN, etc.). No code mutations — just
+a read-only report so operators can see, at deploy time,
+whether the env is ready for a given mode flip.
+
+**Files touched.**
+
+- `lib/env-validate.ts` (new) — `validateEnv(env?)` returns
+  `{ environment, findings, errors, warnings }`. 9 rules today:
+  `NEXTAUTH_SECRET` / `CRON_SECRET` (errors in prod); `NEXTAUTH_URL`,
+  `DATABASE_URL`, `DIRECT_URL`, `GITHUB_TOKEN`, `GITHUB_REPOSITORY`,
+  plus mode-dependent rules for `CSRF_MODE=enforce` without
+  `NEXT_PUBLIC_APP_URL` and `RATE_LIMIT_MODE=enforce` without
+  Upstash. Dev / test / preview downgrade every rule to a warning
+  so `SKIP_DB=1` / `SKIP_AUTH=1` loops stay quiet. Environment
+  detection prefers `VERCEL_ENV` over `NODE_ENV`.
+- `scripts/check-env.ts` (new) — CLI wrapper. `--json` mode for
+  deploy-script consumers; exit 1 on any `error`, 0 otherwise.
+- `package.json` — `env:check` / `env:check:json` scripts.
+- `scripts/preflight.sh` — required block gains an "env validator"
+  step after the `.env.local` existence check. Dev preflight
+  (warnings only) passes; prod preflight without CRON_SECRET /
+  NEXTAUTH_SECRET fails as expected.
+- `__tests__/lib-env-validate.test.ts` (new) — 9 cases covering
+  production-error surfacing, dev downgrade, fully-configured
+  green path, CSRF mode combinations, rate-limit+Upstash
+  combinations, GITHUB_TOKEN rules, and the VERCEL_ENV-wins
+  detection.
+
+**What's intentionally NOT here.**
+
+- No module-load-time side effect. Importing `lib/env-validate`
+  returns the function; it doesn't run. Callers decide.
+- No `/api/status` route. Surfacing env warnings on an unauth'd
+  endpoint would leak configuration detail; when that route
+  lands it'll be staff-guarded via `runAuthed('staff', …)`.
+- No auto-fail on missing `UPSTASH_REDIS_REST_URL` — that's a
+  downgrade warning, not an error, until prod actually needs
+  cross-instance rate-limiting.
+
+---
+
+## 2026-04-23 · A-010 doc-discipline weekly → GitHub Actions workflow
+
+Same pattern as A-008: `scripts/lint-docs.ts` needs a full git
+history against `origin/main`, which Vercel serverless doesn't
+keep on disk. Move the weekly sweep to GitHub Actions where
+`checkout@v4 fetch-depth: 0` is trivial. The per-PR gate in
+`ci.yml` still runs — this sweep is the "catch anything that
+slipped" safety net.
+
+**Files touched.**
+
+- `.github/workflows/a010-doc-discipline.yml` (new) — weekly on
+  Sun 04:30 UTC. Computes the oldest commit in the past 7 days
+  on `origin/main`, runs `audit:docs:json` against that window,
+  opens or comments on `[a010] doc-discipline drift` with the
+  violation list, fails the workflow if any violations landed.
+  Same dedup key pattern as A-008 (`cron-audit,a010` labels).
+- `vercel.json` — removed the `/api/cron/audit-doc-discipline-
+  weekly` slot for the same 404-avoidance reason as A-008.
+- `docs/EXECUTION_PLAN.md` §2.5 — A-010 row points at the
+  workflow path.
+
+**Note on the window.** 7 days of commits sometimes include zero
+commits (holiday weeks, docs-only freezes). The workflow handles
+that explicitly — if no base commit is found in-window it sets
+`skipped=true` and exits 0.
+
+---
+
+## 2026-04-23 · A-008 cron → GitHub Actions workflow
+
+Same branch. `EXECUTION_PLAN.md` §2.5 listed A-008 as
+`cron/audit-deps-weekly` (Vercel cron), but Vercel serverless
+doesn't have the dev-dep tree or lockfile available to `npm audit`
+at runtime. GitHub Actions runners do. Move the audit there.
+
+**Files touched.**
+
+- `.github/workflows/a008-deps.yml` (new) — weekly schedule
+  (Sun 04:00 UTC, matching the plan row). Runs `npm audit
+  --omit=dev --audit-level=low --json`, summarises into
+  `total=N sev1=M`, opens or comments on a single tracked
+  issue (`cron-audit,a008` labels — same dedup key the
+  Vercel-cron issue-opener uses, so the two surfaces agree on
+  ownership). Fails the workflow on any Sev-1 finding
+  (`critical` + `high`); Sev-2/3 → issue only. Uploads the
+  raw JSON as a 30-day artefact.
+- `vercel.json` — removed the `/api/cron/audit-deps-weekly`
+  entry so Vercel stops 404'ing on the slot weekly.
+- `docs/EXECUTION_PLAN.md` §2.5 — A-008 row now points at the
+  GitHub Actions workflow path instead of a cron URL. Version
+  header stays at 1.2 (bumped earlier in D-026; this edit is
+  within the same PR diff against `origin/main`).
+
+**Why not fail on Sev-2?** Sev-2 findings are real but rarely
+urgent enough to block other merges — dependabot or a scheduled
+`npm audit fix` PR covers them. Keeping the workflow-fail gate
+tight on Sev-1 only prevents a nightly false positive from
+blocking every open PR via required-status checks.
+
+---
+
+## 2026-04-23 · Cron issue-opener — `lib/audits/issue-opener.ts`
+
+Same branch. Adds the subscriber that turns a cron-audit finding
+into a tracked GitHub issue. Deferred-but-safe-to-ship pattern:
+without `GITHUB_TOKEN` + `GITHUB_REPOSITORY` it logs
+`[issue-opener] would open: …` and returns
+`{ opened: false, reason: 'no_token' }`. When the token lands
+(env var in Vercel prod + Sev-1 on-call paging), the next cron
+run opens real issues. No code change to turn on.
+
+**Files touched.**
+
+- `lib/audits/issue-opener.ts` (new) — `openAuditIssue(input)`
+  returning `{ opened, reason? | number + url }`. Behaviour
+  matrix:
+  * no token OR no `GITHUB_REPOSITORY` → log + `reason: no_token`
+  * token + `GITHUB_ISSUE_OPENER_MODE=dry` → log + `reason: dry_run`
+  * token + dedupe hit (same `title` + open issue with
+    `cron-audit,<auditId>` labels) → POST comment + `reason:
+    duplicate, detail: existing #<n>`
+  * token + no dup → POST new issue + `opened: true`.
+  Idempotency via search-first pattern. Non-2xx responses surface
+  as `api_error`; exceptions are caught and surfaced the same way.
+  No retries — a cron runs once a week and the next run covers a
+  transient GH outage.
+- `app/api/cron/audit-auth-weekly/route.ts` — wires in the opener
+  for every UNAUTHED row. Issue body explains the Sev-1 rule,
+  lists the valid guards to wrap the handler in, and stamps the
+  cron's `correlationId` at the bottom. `issues` array joins the
+  response summary so operators can see which findings actually
+  opened an issue vs. which were duplicates or dry-run.
+- `__tests__/lib-audits-issue-opener.test.ts` (new) — 6 cases:
+  no token; token + no repo; dry-run respected; fresh open
+  (POSTs correct payload with labels); duplicate comments on the
+  existing issue and does NOT POST a second; api_error on non-2xx
+  create. Uses a stubbed `globalThis.fetch` so the tests never
+  hit the network.
+- `__tests__/api-cron-audit-auth.test.ts` — +1 case confirming
+  the response includes `issues: []` on a clean audit run.
+
+**Why not for A-003 / A-004 / A-011 yet?** A-003 violations are
+better surfaced as a single paging incident than N issues — the
+nightly handler calls the pager when that integration lands.
+A-004 is informational and high-volume (38 non-allowlisted hits
+today); opening 38 issues weekly would be noise. A-011 does want
+per-article issues but needs `assignees` populated from each
+article's `owner` frontmatter, which takes a small
+owner → GitHub-handle map that hasn't been captured yet.
+
+**Env reference.**
+
+- `GITHUB_TOKEN` — fine-grained PAT with `issues:write` scope on
+  the target repo. Scope it tight; the cron only needs to create
+  issues and comments.
+- `GITHUB_REPOSITORY` — `<owner>/<repo>` slug. Defaults to Vercel's
+  built-in env var when deploying from a GitHub integration; can
+  also be overridden via `CRON_ISSUE_OPENER_REPO` for staging
+  dry-runs against a test repo.
+- `GITHUB_ISSUE_OPENER_MODE` — set to `dry` to force log-only
+  behaviour even with a token configured.
+
+---
+
+## 2026-04-23 · Route-level CSRF smoke (`e2e-tests/csrf-smoke.spec.ts`)
+
+Same branch. Closes the "Route-level CSRF Playwright smoke" item
+from the post-0.7 rolling list. The unit suite
+(`__tests__/lib-csrf.test.ts`) already proved the classifier is
+correct; this spec proves the middleware is actually wired on
+every `/api/*` entry point and enforces the verdict in a real
+request/response cycle.
+
+**Files touched.**
+
+- `e2e-tests/csrf-smoke.spec.ts` — new. Two `describe` blocks,
+  both auto-skip unless `CSRF_MODE=enforce`. Under enforce:
+  cross-origin POST to `/api/cases`, `/api/signup`,
+  `/api/partner-roles` returns 403 with
+  `{ error: 'csrf_origin_mismatch' }`; missing Origin + missing
+  Referer returns 403 with a `csrf_*` error code; same-origin POST
+  may return 400/401/200 but must NOT 403 for a CSRF reason.
+  Skip-list spec exercises NextAuth (GET) and Webflow webhook
+  (POST with cross-origin Origin) — both bypass CSRF because
+  their own auth boundary is the defense.
+- `package.json` — `smoke:csrf` script + added the spec to the
+  `smoke` compound so it runs in CI's legacy-checks job. Auto-
+  skip under `CSRF_MODE=off` means it's a no-op today; flipping
+  the flag on staging immediately engages coverage.
+
+**Why three endpoints, not one.** `/api/cases` tests a generic
+state-changing POST; `/api/signup` tests the public path where
+the skip list should NOT apply; `/api/partner-roles` tests the
+403-before-auth ordering (CSRF is checked in middleware before
+`runAuthed` gets a chance to return 401).
+
+**Runbook for the staging flip.**
+
+1. Deploy with `CSRF_MODE=report-only`. Leave a week. Grep logs
+   for `[csrf] report-only` — if any legitimate client appears
+   there, that's a real bug in the client (missing Origin on a
+   state-changing call); fix at the client.
+2. Flip to `CSRF_MODE=enforce`. Re-run `npm run smoke` —
+   `smoke:csrf` now executes its assertions instead of skipping.
+3. If green, promote to prod.
+
+---
+
+## 2026-04-23 · Migrate 14 LEGACY SKILL.md files to v0.1 frontmatter
+
+Same branch. The A-011 audit shipped earlier on this branch
+flagged 14 domain-root `SKILL.md` files as LEGACY because their
+frontmatter uses the pre-v0.1 schema (`domain:` + `review_ttl:
+<date>` + `motivated_by: [...]`) rather than the v0.1 shape (`id:`
++ `reviewed_at:` + `review_ttl_days:`). Non-destructive migration:
+add the three missing v0.1 fields to each, preserve everything
+else.
+
+**Per file, inserted after `confidence: draft`:**
+
+```
+id: <domain>.skill.root
+reviewed_at: 2026-04-22
+review_ttl_days: 90
+```
+
+`2026-04-22` matches the date used by the core v0.1 articles
+(same `Claude.md` rebaseline window). `90` days is the implied
+TTL from the existing `review_ttl: 2026-07-22` + the rebaseline
+date — no semantic drift.
+
+**Files migrated (14):** `availability`, `cost-guard`,
+`escalation`, `i18n-rtl`, `marketing-automation`,
+`marketplace-attribution`, `multi-tenancy`, `onboarding`,
+`portugal-immigration`, `provider-directory`, `seo-aeo-geo`,
+`service-provider-pool`, `uae-immigration`, `webflow`.
+
+**After the migration.** A-011 scans 30 articles under `skills/`:
+30 FRESH / 0 STALE / 0 EXPIRED / 0 INVALID / 0 LEGACY. The
+pre-v0.1 fields (`domain:`, `review_ttl:`, `motivated_by:`)
+remain in place for context; the audit simply has the v0.1
+fields it needs to classify now.
+
+**Body unchanged.** Every file's Markdown body is byte-identical
+to the pre-migration version. Only the YAML frontmatter grew by
+three lines per file.
+
+---
+
+## 2026-04-23 · First 4 cron handlers — `/api/cron/audit-*`
+
+Same branch. Wires the first 4 of the 11 cron slots declared in
+`vercel.json` to the `runCron`-guarded handler pattern shipped
+earlier on this branch. Each imports its audit library entry
+point from `lib/audits/` (from the refactor commit that just
+landed) and returns a JSON summary. GitHub-issue opening on
+findings is deferred until `GITHUB_TOKEN` lands — the
+correlation id on the response is the trail.
+
+**Handlers shipped.**
+
+- `app/api/cron/audit-auth-weekly/route.ts` — A-002, Sun 03:00 UTC.
+  Runs `runAuditAuth()`; returns `{ id: 'a002', ok, total, counts,
+  violations }`. `ok: false` when any UNAUTHED route is found.
+- `app/api/cron/audit-tenant-nightly/route.ts` — A-003, daily
+  03:15 UTC. Runs `runAuditTenant()`; returns the schema sync
+  report + per-route violations. Nightly (not weekly) because
+  D-023 drift is a Sev-1 pager event.
+- `app/api/cron/audit-jurisdiction-weekly/route.ts` — A-004, Sun
+  03:30 UTC. Informational; body always `ok: true`, carries
+  `perTerm` breakdown + a 200-entry sample of non-allowlisted
+  hits.
+- `app/api/cron/audit-kb-staleness-weekly/route.ts` — A-011, Mon
+  03:00 UTC. Informational; full articles array in response
+  (~30 rows today, small).
+
+**Shape.** Every handler:
+
+1. Declares `runtime = 'nodejs'`, `dynamic = 'force-dynamic'`,
+   `revalidate = 0`.
+2. Exports `GET(req)` only (Vercel Cron sends GET).
+3. Wraps the body in `runCron(req, async ({ correlationId, path })
+   => {...})`. Unauthorized callers get 401; misconfigured prod
+   (no `CRON_SECRET`) gets 500 `cron_misconfigured`.
+4. Returns HTTP 200 with a JSON summary even on audit failure —
+   the `ok: false` field + populated `violations` are the fail
+   signal. 500 would make Vercel retry, which doesn't help a
+   deterministic audit on the same deploy.
+5. Classifies as GUARDED under A-002 (`runCron` is in
+   `GUARD_PATTERNS`) and as STATIC_OK under A-005 (no DB marker).
+
+**Test.**
+
+- `__tests__/api-cron-audit-auth.test.ts` — 5 cases exercising
+  the `runCron` contract through a real cron handler: 401 on
+  missing bearer, 401 on wrong bearer, happy path with the
+  audit summary payload, X-Correlation-Id stamp on the auth
+  path, `SKIP_AUTH=1` dev bypass. The test imports `GET` from
+  the route file directly; jest's `jsdom` default is
+  overridden per-file with `@jest-environment node`.
+
+**Still deferred.**
+
+- `/api/cron/audit-cost-daily` (A-006) — needs DB + cost-guard
+  aggregate queries.
+- `/api/cron/audit-deps-weekly` (A-008) — needs `npm audit
+  --json` in a serverless context; likely easier as a GitHub
+  Action than a Vercel cron.
+- `/api/cron/audit-doc-discipline-weekly` (A-010) — git-diffing
+  against `origin/main` from a serverless handler is awkward;
+  punt until the issue-opener lands and we can re-evaluate.
+- `/api/cron/deadline-alert`, `.../marketing-hitl-escalate`,
+  `.../commission-settle`, `.../analytics-rollup` — all DB-
+  dependent, all blocked on Supabase connect.
+- Issue-opener subscriber (`lib/audits/issue-opener.ts`) —
+  consumes the handler JSON, calls `mcp__github__issue_write`
+  (or the REST API with `GITHUB_TOKEN`) to open one issue per
+  violation, tags `@<owner>` from each article's frontmatter
+  where applicable. Lands when the token is provisioned.
+
+---
+
+## 2026-04-23 · Audit library refactor — `lib/audits/` modules
+
+Same branch. Mechanical refactor: the five existing audit scripts
+(`audit-auth`, `audit-dynamic`, `audit-tenant`, `audit-jurisdiction`,
+`audit-kb-staleness`) split into library + CLI pairs so the
+not-yet-written cron handlers can call the audits via a typed
+function instead of shelling out to `tsx scripts/...`. No behaviour
+change for the CLI gate — every script prints identical output and
+exits identically.
+
+**Files touched.**
+
+- `lib/audits/auth.ts` (new) — exports `runAuditAuth()` returning
+  `{ total, rows, grouped, unauthed }`. Moves `INTENTIONAL_PUBLIC`,
+  `GUARD_PATTERNS`, `STUB_PATTERNS`, `Classification`, and the
+  walker. CLI constants re-exported so edits have one home.
+- `lib/audits/dynamic.ts` (new) — exports `runAuditDynamic()`
+  returning `{ total, dbReading, staticOk, rows, violations }`.
+- `lib/audits/tenant.ts` (new) — exports `runAuditTenant()`
+  returning `{ schema, routesScanned, violations, ok, schemaErrors }`.
+  `INTENTIONAL_PUBLIC_ROUTES` moved here; the script's error
+  messages updated to point readers at the new file.
+- `lib/audits/jurisdiction.ts` (new) — exports
+  `runAuditJurisdiction()` returning `{ totalFiles, hits,
+  nonAllowlisted, perTerm }`. Self-allow-lists both the library
+  file and the CLI wrapper so it doesn't flag its own pattern
+  strings.
+- `lib/audits/kb-staleness.ts` (new) — exports
+  `runAuditKbStaleness({ now?: Date, root?: string })` with an
+  injectable clock for deterministic cron tests.
+- `scripts/audit-auth.ts`, `scripts/audit-dynamic.ts`,
+  `scripts/audit-tenant.ts`, `scripts/audit-jurisdiction.ts`,
+  `scripts/audit-kb-staleness.ts` — each reduced to a thin CLI
+  driver that imports the library entry point and prints the
+  report. Same flags (`--json`, `--strict`, `--now`), same exit
+  codes.
+
+**Why now.** The post-0.7 cleanup work on this branch shipped every
+audit as a CLI script, but the `vercel.json` crons (audit-auth-
+weekly, audit-tenant-nightly, audit-jurisdiction-weekly, audit-kb-
+staleness-weekly) have 0 handlers written. Shelling out from a
+serverless handler to `tsx scripts/…` is flaky because the
+deployment bundle may not include `tsx` and the source file under
+`scripts/`. Importing a library is correct.
+
+**Verification.** All five CLIs run clean (A-002 · 27 GUARDED / 5
+PUBLIC / 0 UNAUTHED, A-003 · 0 violations, A-005 · 25 DB / 22 static
+/ 0 violations, A-011 · 16 FRESH / 14 LEGACY, A-004 · 38 non-
+allowlisted hits in informational mode as before). A-010 doc-
+discipline passes.
+
+**Next.** Cron handlers themselves land in the next commit: each
+wraps its body in `runCron(req, async ctx => { const result =
+runAuditX(); return NextResponse.json({ ok: result..., correlationId:
+ctx.correlationId }) })`, stamped with `dynamic = 'force-dynamic'`
++ `revalidate = 0` per A-005. GitHub-issue opening on violations is
+deferred until GITHUB_TOKEN is provisioned — for now, the
+correlation id in the response header is the trail.
+
+---
+
+## 2026-04-23 · A-011 KB freshness audit script
+
+Same branch, follow-up to D-026. Ships the audit that D-026 just
+renumbered from the pre-decision A-005 to A-011. Informational
+(not merge-blocking) per EXECUTION_PLAN §2.1; exit 0 unless
+invoked with `--strict`.
+
+**Files touched.**
+
+- `scripts/audit-kb-staleness.ts` — new. Walks `skills/`
+  recursively, parses YAML frontmatter, classifies each article
+  as FRESH / STALE / EXPIRED / INVALID / LEGACY. LEGACY is a
+  separate bucket for pre-v0.1 domain-root `SKILL.md` files
+  whose frontmatter uses `domain:` + `review_ttl: <date>`
+  instead of the v0.1 shape (`id:` + `reviewed_at:` +
+  `review_ttl_days:`); they're informational rather than
+  flagged as INVALID so they don't pollute the signal. Flags:
+  `--json`, `--strict`, `--now YYYY-MM-DD` (deterministic clock
+  override for tests + future cron handler).
+- `package.json` — `audit:kb` / `audit:kb:json` / `audit:kb:strict`
+  scripts alongside the other audits.
+- `.github/workflows/ci.yml` — new informational step in the
+  `gates` job, wired after A-004. Uses default (non-strict)
+  mode so stale KB articles don't block merges — they surface
+  in the step output.
+- `docs/EXECUTION_PLAN.md` §12.1 checklist — marked
+  `audit-dynamic.ts` (A-005), `audit-tenant.ts` (A-003), and
+  `audit-kb-staleness.ts` (A-011) as landed. Plan already at
+  version 1.2 from the D-026 commit, no further bump needed.
+
+**Snapshot of today's results** (run against `skills/` as of
+2026-04-23, with the core v0.1 articles all at `reviewed_at:
+2026-04-22`):
+
+```
+Scanned: 30 articles under skills/
+  FRESH:   16
+  STALE:    0
+  EXPIRED:  0
+  INVALID:  0
+  LEGACY:  14  (pre-v0.1 frontmatter; informational)
+OK — every article is fresh.
+```
+
+**When the weekly cron lands.** `cron/audit-kb-staleness-weekly`
+(Vercel cron, Mon 03:00 UTC per EXECUTION_PLAN §2.5) will call
+this script inside a `runCron`-guarded handler, pipe the JSON
+output to a GitHub-issue opener, and tag `@<owner>` on each
+per-article issue. The audit is cron-ready today — it exits 0
+for fresh KBs and the JSON schema is stable.
+
+---
+
+## 2026-04-23 · D-026 · Audit numbering reconciliation
+
+Same branch. `EXECUTION_PLAN.md` §2.1 had `A-005 = KB freshness
+audit` (a weekly cron, not yet built). D-025 item 4 later
+introduced `A-005 = dynamic-route audit` without renumbering the
+KB row, so both coexisted after D-025 landed. The dynamic-route
+A-005 is now everywhere in code / CI / preflight / logs; the KB
+one is only in prose. D-026 renumbers the KB audit to `A-011`,
+freezes `A-005` on dynamic-route, and bumps the plan header 1.1
+→ 1.2 per A-010 R2.
+
+**Files touched.**
+
+- `docs/EXECUTION_PLAN.md` — version bump 1.1 → 1.2. §2.1
+  audit catalogue: `A-005` row rewritten for the dynamic-route
+  audit with "Block merge to `main`" status (matching CI); new
+  `A-011` row for KB freshness. §2.4 per-PR gate checklist: new
+  A-005 bullet. §2.5 cron table: KB-staleness weekly cron
+  relabelled `A-011`. §5.4 paragraph: `(A-005)` → `(A-011)`.
+- `docs/DECISIONS.md` — `D-026` added with the reconciliation
+  rationale (path-of-least-churn: renumber the unshipped KB
+  audit, keep A-005 on the one that already shipped).
+- `docs/EXECUTION_LOG.md` — this entry.
+
+**Historical log entries.** Lines 706 and 1047 (pre-D-026) still
+read `A-005` for the staleness sweep and the dynamic-route audit
+respectively. Log is append-only by convention; readers parse
+those as pre-reconciliation. All *new* references from 2026-04-23
+forward use the post-D-026 numbering.
+
+---
+
+## 2026-04-23 · Rate-limit middleware rollout — flag-gated (off → report-only → enforce)
+
+Same branch. Parallel to the CSRF rollout — `applyRateLimit`
+wires into `middleware.ts` after CSRF, defaults to
+`RATE_LIMIT_MODE=off`. Skip list covers `/api/auth/*`,
+`/api/webhooks/*`, `/api/cron/*`, and `/api/health` (uptime
+probes must never get a 429).
+
+**Files touched.**
+
+- `lib/rate-limit.ts` — added `rateLimitMode()`,
+  `applyRateLimit(req, opts?)`, per-(method, path, key) bucketing
+  with the default 120 requests / 60 s window, 429
+  `Retry-After`-bearing response in enforce mode, structured
+  `[rate-limit] report-only: …` warn in report-only mode.
+- `middleware.ts` — API branch now chains `applyCsrf` →
+  `applyRateLimit` before falling through to `NextResponse.next()`.
+  Non-API paths untouched.
+- `__tests__/lib-rate-limit.test.ts` — 8 new cases covering mode
+  parsing, off no-op, enforce 429 at 121st call, report-only
+  warn-without-block, skip paths (cron / auth / webhooks /
+  health), non-API path bypass, per-path bucketing, and
+  `SKIP_AUTH=1` dev bypass.
+- `docs/EXECUTION_LOG.md` — this entry.
+
+**Why prod enforce is deferred.**
+
+The Map-backed counter is correct only within a single server
+instance. Vercel Edge runs across multiple instances, so a
+caller flooding `/api/x` against instance A won't increment
+instance B's counter. For staging and for single-region
+deployments it's enough; for prod, the Upstash backend is the
+real ceiling. Keep `report-only` in prod until Upstash lands,
+then flip to `enforce`.
+
+---
+
 ## Rolling open items
 
 Copied from the commits above; delete lines here as they land.
 
 - [ ] Run `npx prisma migrate dev --name sprint0-foundation && npx prisma migrate dev --name aos-phase1 && npx prisma migrate dev --name add-tenancy` once a dev DB is reachable. Until then, Prisma client types will not reflect the new models and tests that touch DB are skipped via `SKIP_DB=1`.
-- [ ] Post-Sprint-0.7 cleanup PR — A-005 dynamic-route audit (D-025 item 4), `scripts/preflight.sh` (KhaledAunSite-digest crib), CSRF content-type-exemption verification, rightmost-XFF rate-limiter verification, `runCron(req, cb)` helper so `/api/cron/*` stops leaning on the A-002 public allow-list.
-- [ ] Bootstrap the Orchestrator from a server entry point: `import '@/lib/agents/register'; subscribeAgent('intake'); subscribeAgent('drafting'); subscribeAgent('email');` — ideally from a `/api/agents/bootstrap` stub that runs on cold start, gated by feature flags.
+- [x] ~~Post-Sprint-0.7 cleanup PR — A-005 dynamic-route audit, preflight, runCron, CSRF + rate-limit scaffolding (all landed 2026-04-23).~~
+- [x] ~~Wire `assertCsrf` into the global middleware matcher~~ (landed 2026-04-23, `CSRF_MODE=off` default; flip to `report-only` in staging, then `enforce` once logs are clean).
+- [ ] Flip `CSRF_MODE` from `off` → `report-only` on staging, then `enforce` after a clean log window.
+- [ ] Ship Upstash backend for `checkRateLimit` alongside the Upstash env vars + prod smoke. Until it lands, `RATE_LIMIT_MODE=enforce` in prod is best-effort only (in-memory Map doesn't share across Edge instances).
+- [x] ~~Wire rate-limit into `middleware.ts` with `RATE_LIMIT_MODE` (off | report-only | enforce)~~ (landed 2026-04-23, default `off`). Same staging flip as CSRF.
+- [ ] Flip `RATE_LIMIT_MODE` from `off` → `report-only` on staging once CSRF enforce is green, then `enforce` after the Upstash backend lands.
+- [x] ~~Bootstrap the Orchestrator from `/api/agents/bootstrap`~~ (landed 2026-04-23). Staff-guarded `POST` binds every `AGENT_*_ENABLED=1` agent via the now-idempotent `subscribeAgent`; `GET` is read-only introspection. Flags default OFF, so cold-start POST without flags set is a no-op.
 - [ ] Flesh out the KB v0.1 articles (`core/disclaimers/upl.md`, `core/disclaimers/outcome.md`, `core/tone/*.md`, `core/escalation/matrix.md`, `core/privacy/consent.md`, `core/privacy/retention.md`, `core/languages.md`).
 - [ ] Execute the jest suite in an environment with `node_modules` installed — none of the tests have been executed in this sandbox.
 - [ ] Port the remaining design-pack screens (Admin Service Types refresh, client portal, analytics/billing dashboards, outcome predictor) when their sprints arrive.

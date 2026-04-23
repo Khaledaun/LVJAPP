@@ -1,6 +1,8 @@
 import { withAuth } from 'next-auth/middleware'
 import { NextResponse, type NextRequest, type NextMiddleware } from 'next/server'
 import { LOCALE_COOKIE, resolveLocale } from '@/lib/i18n'
+import { applyCsrf } from '@/lib/csrf'
+import { applyRateLimit } from '@/lib/rate-limit'
 
 const SKIP =
   process.env.SKIP_AUTH === '1' ||
@@ -41,6 +43,21 @@ const authedMiddleware = withAuth({
 })
 
 export default async function middleware(req: NextRequest, ev: any) {
+  const pathname = req.nextUrl.pathname
+
+  // API surface: CSRF guard only (staged rollout via CSRF_MODE env —
+  // off | report-only | enforce). `withAuth` is *not* applied to
+  // `/api/*` — API routes return 401 JSON themselves through
+  // `runAuthed`; redirecting to `/signin` would break clients.
+  if (pathname.startsWith('/api/')) {
+    const csrfBlocked = applyCsrf(req)
+    if (csrfBlocked) return csrfBlocked
+    const rlBlocked = applyRateLimit(req)
+    if (rlBlocked) return rlBlocked
+    return NextResponse.next()
+  }
+
+  // Page surface: existing withAuth + locale cookie flow.
   const res = SKIP
     ? NextResponse.next()
     : (await Promise.resolve((authedMiddleware as any)(req, ev))) as NextResponse | undefined
@@ -59,5 +76,8 @@ export const config = {
     '/ar/:path*',
     '/en/:path*',
     '/pt/:path*',
+    // CSRF guard for every API route. NextAuth / webhooks / cron
+    // self-skip via the lib/csrf skip list.
+    '/api/:path*',
   ],
 }

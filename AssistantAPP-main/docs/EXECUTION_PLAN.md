@@ -1,6 +1,6 @@
 # LVJ Execution Plan — Master Orchestration Contract
 
-*Version 1.1 — April 2026 · Owner: Khaled Aun (founder) · Maintainer: Claude Code*
+*Version 1.2 — April 2026 · Owner: Khaled Aun (founder) · Maintainer: Claude Code*
 *Companion to `Claude.md` v4.0 · `docs/PRD.md` v0.3 · `docs/AGENT_OS.md` v0.1 · `docs/DECISIONS.md` · `docs/EXECUTION_LOG.md` · `docs/BUGS.md`*
 
 > **Purpose.** This document is the *operational* spine of the build. It
@@ -135,12 +135,13 @@ different cadence with a different owner.
 | A-002 | Auth-on-every-route audit      | Per PR + weekly cron     | Eng + CI         | `docs/BUGS.md` entries (severity Sev-1/2)   | Merge to `main`         |
 | A-003 | Tenant-isolation audit         | Per PR touching Prisma + nightly cron | Eng + CI | `BUGS.md` (Sev-1) + `AuditLog` row     | Merge + deploy          |
 | A-004 | Jurisdiction audit (D-006)     | Per PR + weekly cron     | Eng + CI         | `BUGS.md` (Sev-3) until cleared             | None — informational    |
-| A-005 | KB freshness audit             | Weekly cron              | Skill owner      | GitHub issue per stale article              | None — opens issues     |
+| A-005 | Dynamic-route audit (D-025 §4) | Per PR                   | Eng + CI (`scripts/audit-dynamic.ts`) | Block merge on any DB-reading route missing `force-dynamic` / `revalidate = 0` | Merge to `main` |
 | A-006 | Cost-guard audit               | Daily cron (UTC midnight)| Cost Guard svc   | `AutomationLog` aggregate + Slack/email     | Pauses non-critical agents |
 | A-007 | Guardrail incident audit       | Per LLM output (online)  | `lib/agents/guardrails.ts` | `BUGS.md` if pattern-classified bug | Pauses agent if rate >5%  |
 | A-008 | Dependency / CVE audit         | Weekly cron              | Eng + CI         | `BUGS.md` (Sev-2 if exploitable)            | Merge if Sev-1 CVE      |
 | A-009 | Secret-scanning audit          | Per push                 | GitHub secret-scan + `mcp__github__run_secret_scanning` | `BUGS.md` (Sev-1 always) | Push      |
 | A-010 | Doc-discipline audit           | Per PR (CI)              | `scripts/lint-docs.ts` (TBD) | PR comment, fail check                  | Merge                   |
+| A-011 | KB freshness audit             | Weekly cron              | Skill owner      | GitHub issue per stale article              | None — opens issues     |
 
 ### 2.2 Audit runbooks
 
@@ -166,6 +167,7 @@ Every PR opened against `main` must satisfy, before merge:
 - [ ] **A-002** — `scripts/audit-auth.ts` exits 0 (no new route lacks `assertCaseAccess` / `assertOrgAccess` / `assertTenantAccess`).
 - [ ] **A-003** — `scripts/audit-tenant.ts` exits 0 (no new business model lacks `tenantId` FK; no query bypasses tenant middleware without `crossTenant: true`).
 - [ ] **A-004** — `scripts/audit-jurisdiction.ts` reports zero new occurrences of `USCIS|RFE|EB5|H1B|N400|IOLTA|DS-160|ABA Model Rule 1\.6` outside legacy comment blocks.
+- [ ] **A-005** — `scripts/audit-dynamic.ts` exits 0 (every DB-reading `route.ts(x)` / `page.tsx` declares `dynamic = 'force-dynamic'` + `revalidate = 0`, per D-025 §4).
 - [ ] **A-008** — `npm audit --omit=dev` exits 0 or all findings are documented in `BUGS.md` with planned fix dates.
 - [ ] **A-010** — `EXECUTION_LOG.md` has a new section for the head commit; if the PR changes a long-lived contract (`Claude.md`, `AGENT_OS.md`, manifest schema, RBAC model, Prisma schema) the affected doc has a bumped version header.
 
@@ -180,10 +182,10 @@ ticks the boxes in the PR description.
 | `cron/audit-auth-weekly`            | A-002 | Sun 03:00 UTC       | Open GitHub issue · page Tenant Admin              |
 | `cron/audit-tenant-nightly`         | A-003 | Daily 03:15 UTC     | Open GitHub issue · page Platform Admin (Sev-1)    |
 | `cron/audit-jurisdiction-weekly`    | A-004 | Sun 03:30 UTC       | Open GitHub issue (Sev-3, informational)           |
-| `cron/audit-kb-staleness-weekly`    | A-005 | Mon 03:00 UTC       | Per-article issue assigned to skill owner          |
+| `cron/audit-kb-staleness-weekly`    | A-011 | Mon 03:00 UTC       | Per-article issue assigned to skill owner          |
 | `cron/audit-cost-daily`             | A-006 | Daily 00:05 UTC     | Pause non-critical agents · email Platform Admin   |
-| `cron/audit-deps-weekly`            | A-008 | Sun 04:00 UTC       | PR auto-opened with `npm audit fix` if safe        |
-| `cron/audit-doc-discipline-weekly`  | A-010 | Sun 04:30 UTC       | Issue listing PRs that landed without log entries  |
+| `.github/workflows/a008-deps.yml`   | A-008 | Sun 04:00 UTC       | Issue with JSON summary; Sev-1 fails the workflow  |
+| `.github/workflows/a010-doc-discipline.yml` | A-010 | Sun 04:30 UTC | Issue listing violations + workflow fail on drift |
 
 All cron handlers are Vercel Cron Jobs per `Claude.md` AD#6. Each
 handler dispatches an event (`cron.audit.<id>`) on `lib/events.ts`;
@@ -446,7 +448,7 @@ front-matter (already in `docs/AGENT_OS.md` §6.2). Maturity levels:
 Demotion is automatic: any article past `2× review_ttl_days` without
 a refreshed `reviewed_at` flips from `authoritative` → `draft` per
 `docs/AGENT_OS.md` §6.4. `BUGS.md` does *not* log this — the
-staleness sweep opens a per-article issue (A-005).
+staleness sweep opens a per-article issue (A-011).
 
 ### 5.5 Decision capture rule (D-005, restated operationally)
 
@@ -1178,25 +1180,57 @@ direction.
 ### 12.1 Tooling gaps (Sprint 0.1 hard unblocks)
 
 - [x] **`scripts/audit-auth.ts`** — A-002 (Sprint 0.1).
-- [ ] **`scripts/audit-tenant.ts`** — A-003 script. Block Sprint 0.5
-      merge.
+- [x] **`scripts/audit-tenant.ts`** — A-003 (landed Sprint 0.5.1,
+      blocking).
 - [x] **`scripts/audit-jurisdiction.ts`** — A-004 (informational).
+- [x] **`scripts/audit-dynamic.ts`** — A-005 (D-025 §4; landed
+      post-0.7 cleanup, blocking).
 - [x] **`scripts/audit-prisma.ts`** — C-004 additive-only schema
       audit (model_removed, field_removed, type_narrowed,
       required_tightened, array_lost detectors).
 - [x] **`scripts/lint-docs.ts`** — A-010 (4 rules: source-diff →
       log, contract-doc version bump, log append-only, DECISIONS
       immutable body).
-- [ ] **`scripts/smoke/<id>.ts`** — S-001 … S-013 scaffolding;
-      landed incrementally per sprint.
+- [x] **`scripts/audit-kb-staleness.ts`** — A-011 (informational).
+      Classifies each `skills/**/*.md` as FRESH / STALE / EXPIRED
+      / INVALID / LEGACY. Landed with D-026.
+- [~] **`scripts/smoke/<id>.ts`** — S-001 … S-013 scaffolding;
+      landed incrementally per sprint. S-003 (auth), S-009 (webflow
+      webhook), S-010 (locale), CSRF route-level smoke live in
+      `e2e-tests/`.
 - [x] **`scripts/pii-scrub.ts`** — centralised `scrubPii` +
       `scrubPiiDeep` (9 patterns: email, phone, passport, SSN, NIF,
       card, IBAN, DOB, IP). Wired from agents in §8 C-019.
 - [x] **`.github/workflows/ci.yml`** — per-PR audit + smoke battery.
+- [x] **`.github/workflows/a008-deps.yml`** — weekly `npm audit`
+      (moved from Vercel cron; needs full dep tree).
+- [x] **`.github/workflows/a010-doc-discipline.yml`** — weekly
+      doc-discipline sweep against the past 7 days of `origin/main`.
 - [x] **`.claude/settings.json`** — project settings for Claude Code
       (permissions + env baseline).
-- [x] **`vercel.json` cron block** — declares 11 crons (7 audits + 4
-      operational). Handlers land per sprint.
+- [x] **`vercel.json` cron block** — declares 9 crons (4 audit
+      handlers shipped, 5 operational pending DB / infra).
+- [x] **`app/api/cron/audit-{auth-weekly,tenant-nightly,
+      jurisdiction-weekly,kb-staleness-weekly}/route.ts`** — first
+      4 audit cron handlers. Each wraps in `runCron`, returns a
+      JSON summary, and (A-002 only today) opens a GitHub issue
+      per violation via `lib/audits/issue-opener.ts`.
+- [x] **`app/api/agents/bootstrap/route.ts`** — staff-guarded POST
+      binds flag-enabled agents via idempotent
+      `orchestrator.subscribeAgent`.
+- [x] **`lib/csrf.ts` + `lib/rate-limit.ts`** — CSRF (no
+      content-type exemption, staircase via `CSRF_MODE`) + in-memory
+      rate-limit (rightmost XFF, staircase via `RATE_LIMIT_MODE`)
+      wired into `middleware.ts` for `/api/:path*`. Upstash prod
+      backend deferred.
+- [x] **`lib/cron.ts`** — `runCron(req, cb)` bearer guard for
+      `/api/cron/*`. Added to A-002 `GUARD_PATTERNS`.
+- [x] **`scripts/preflight.sh`** — local "am I allowed to deploy?"
+      driver. Required block mirrors CI `gates`; soft block =
+      tsc/lint/jest/build + origin/main-diffing audits.
+- [x] **`scripts/check-env.ts` + `lib/env-validate.ts`** — typed
+      env validator; preflight-integrated; deploy-script consumable
+      via `--json`.
 
 ### 12.2 Infrastructure gaps
 
@@ -1231,12 +1265,34 @@ direction.
 - **Quarterly review cadence confirmation.** §5.6 default is
   quarterly; confirm with founder.
 
-### 12.5 Fresh next actions (out of this PR)
+### 12.5 Fresh next actions
 
-1. Review + merge this PR (`claude/execution-plan-framework-Ls8tj`).
-2. Sprint 0.1 kickoff — use §10.2 recipe.
-3. Write `scripts/audit-auth.ts` as Sprint 0.1's first deliverable.
-4. Provision a Postgres instance (blocker for 0.5).
+Scoped to what the maintainer can do without infra that's pending
+(Supabase, Upstash, Stripe, etc.). Post-0.7 cleanup closed on
+`claude/post-0.7-a-005-dynamic-audit-X4mBc`.
+
+1. **Flip `CSRF_MODE` on staging** → `report-only` for a week, then
+   `enforce`. Grep Vercel logs for `[csrf] report-only` during the
+   report-only window.
+2. **Flip `RATE_LIMIT_MODE` on staging** → `report-only` after
+   CSRF enforce is green. Hold prod `enforce` until the Upstash
+   backend lands.
+3. **Provision `CRON_SECRET` + `GITHUB_TOKEN` + `GITHUB_REPOSITORY`**
+   on Vercel prod. `npm run env:check` reports green afterward.
+   Cron issue-opener then creates real issues on A-002 findings.
+4. **Supabase connect PR.** The D-025 five-item checklist; wires
+   `DATABASE_URL` + `DIRECT_URL`, runs the pending `prisma migrate
+   dev` commands, adds the `@@map` sub-check to `audit-prisma.ts`
+   when the first raw query lands.
+5. **Sprint 0.5.x follow-through on cron handlers.**
+   `/api/cron/audit-cost-daily` (A-006), `/deadline-alert`,
+   `/marketing-hitl-escalate`, `/commission-settle`,
+   `/analytics-rollup` — each blocks on DB availability from step
+   4.
+6. **Issue #11 risky half** (separate branch) — `@prisma/client`
+   enum re-export, `@types/react` recharts override,
+   `lib/agents/invoke.ts` generic cast. When `tsc --noEmit` flips
+   to zero, CI `legacy-checks` step goes blocking.
 
 ---
 

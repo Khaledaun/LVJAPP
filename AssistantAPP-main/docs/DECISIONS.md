@@ -633,6 +633,54 @@
 
 ---
 
+## D-026 · Audit numbering reconciliation — KB freshness renumbered to A-011; A-005 keeps "dynamic-route"
+
+- **Date.** 2026-04-23
+- **Status.** accepted
+- **Context.** D-025 item 4 introduced "A-005 (dynamic-route
+  audit)" as a blocking CI gate, but the existing
+  `EXECUTION_PLAN.md` §2.1 audit catalogue already had an `A-005`
+  row claimed by "KB freshness audit" (a weekly cron, not yet
+  built). Both numbers coexisted in docs after D-025 landed. The
+  `A-005` label now appears in code (`scripts/audit-dynamic.ts`),
+  in the `audit:dynamic` npm script, in the CI `gates` job step
+  name, in `scripts/preflight.sh`, and in every post-0.7 cleanup
+  log entry — all referring to the dynamic-route audit. The KB-
+  freshness audit is referenced only in prose (plan §2.1, §2.5,
+  §5.4) and has no code yet.
+- **Decision.** Reconcile by renumbering along the path of
+  least churn:
+  1. `A-005` permanently = **Dynamic-route audit** (the one that
+     shipped; D-025 §4).
+  2. KB freshness audit is renumbered to `A-011`. `EXECUTION_PLAN.md`
+     §2.1 catalogue, §2.4 per-PR gate list, §2.5 cron table, and
+     §5.4 paragraph updated in the same commit.
+  3. The A-005 row in §2.1 is now marked "Block merge to `main`",
+     matching the CI `gates` job (was blank in the pre-D-025 draft
+     that listed KB freshness as "None — opens issues").
+- **Why this direction.** The alternative — renumbering the
+  dynamic-route audit to A-011 — would churn: the script filename,
+  the npm script name, the CI step label, the preflight line, and
+  four EXECUTION_LOG entries. All of that for a rename that trades
+  one arbitrary number for another. Renumbering the unshipped KB
+  audit is free.
+- **Consequences.**
+  - `EXECUTION_PLAN.md` version header bumped 1.1 → 1.2 per A-010
+    R2 (§2.1 + §2.5 are long-lived contracts).
+  - When the KB freshness audit ships, it uses `A-011` throughout:
+    `scripts/audit-kb-staleness.ts`, `audit:kb` npm script (or
+    similar), `cron/audit-kb-staleness-weekly` handler.
+  - Historical `EXECUTION_LOG.md` entries that referenced the
+    pre-reconciliation A-005 (log line 706, "staleness sweep
+    (A-005)") remain as-written — log is append-only — but
+    readers should parse those as pre-D-026 references.
+- **Follow-ups.**
+  - `scripts/audit-kb-staleness.ts` (A-011) — separate PR when
+    the KB v0.1 articles are marked `confidence: authoritative`
+    and their `review_ttl_days` actually starts counting.
+
+---
+
 ## How to add a decision
 
 1. Grab the next `D-NNN` number.

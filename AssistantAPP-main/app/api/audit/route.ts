@@ -3,6 +3,7 @@ import { getPrisma } from '@/lib/db'
 import { runAuthed } from '@/lib/rbac-http'
 
 export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)

@@ -4,6 +4,9 @@ import { runAuthed } from "@/lib/rbac-http";
 import { runPlatformOp } from "@/lib/tenants";
 import { isGlobalAdmin } from "@/lib/rbac";
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 const mockServiceTypes = [
   { id: "st_1", title: "Work Visa", description: "Employment-based visa applications and renewals", createdAt: new Date("2024-01-01"), updatedAt: new Date("2024-01-01") },
   { id: "st_2", title: "Tourist Extension", description: "Tourist visa extensions and visitor status changes", createdAt: new Date("2024-01-01"), updatedAt: new Date("2024-01-01") },

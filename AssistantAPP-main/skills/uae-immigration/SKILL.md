@@ -3,6 +3,9 @@ domain: uae-immigration
 owner: tenant-counsel-ae
 jurisdiction: AE
 confidence: draft
+id: uae-immigration.skill.root
+reviewed_at: 2026-04-22
+review_ttl_days: 90
 review_ttl: 2026-10-22
 motivated_by:
   - PRD v0.3 §4.3 Legal & compliance (UAE v1.x)
