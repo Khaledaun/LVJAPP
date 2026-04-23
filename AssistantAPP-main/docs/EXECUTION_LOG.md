@@ -1468,6 +1468,58 @@ one obvious place.
 
 ---
 
+## 2026-04-23 · P1.5 · Audit-chain completeness audit (A-013)
+
+Same branch. Closes the fifth closure item from the PRD↔Plan
+audit. PRD §5.5 target: audit-chain completeness 100%. Today no
+audit verified that every mutating handler calls `logAuditEvent`.
+A-013 is the new static check; ships informational first and
+flips to blocking once the MISSING_AUDIT count hits 0.
+
+**Files touched.**
+
+- `lib/audits/audit-chain.ts` (new) — `runAuditChain()` walks
+  `app/api/**/route.ts`, pulls mutating exports (POST / PUT /
+  PATCH / DELETE), classifies each as `AUDITED` /
+  `INTENTIONAL_NO_AUDIT` / `STUB` / `MISSING_AUDIT`. Detects
+  audit calls via regex for `logAuditEvent`, `logAudit`,
+  `prisma.auditLog.create`, `writeAudit`.
+  `INTENTIONAL_NO_AUDIT` is an inline allowlist with a written
+  justification per entry (NextAuth internals, HMAC webhooks,
+  cron handlers, signup pre-session, terms acceptance).
+- `scripts/audit-chain.ts` (new) — CLI wrapper. `--json` for
+  machine consumption; `--strict` promotes `MISSING_AUDIT` to
+  exit 1 (default informational).
+- `__tests__/lib-audits-audit-chain.test.ts` (new) — 6 cases:
+  four-bucket classification; cron handlers land as
+  `INTENTIONAL_NO_AUDIT`; read-only routes are trivially
+  `AUDITED`; the regex detects real audit calls; allowlist
+  integrity; `MISSING_AUDIT` invariants (mutating + not
+  allowlisted + not stub).
+- `package.json` — `audit:chain` / `:json` / `:strict`.
+- `.github/workflows/ci.yml` — new step after A-012:
+  `npm run audit:chain` with `continue-on-error: true`
+  (informational today).
+- `docs/EXECUTION_PLAN.md` §2.1 audit catalogue — A-012 + A-013
+  rows appended. §2.4 per-PR gate: A-012 added as blocking,
+  A-013 as informational-TBD-blocking.
+
+**Snapshot today.** A-013 scans 38 routes: 21 AUDITED /
+5 INTENTIONAL_NO_AUDIT / 0 STUB / **12 MISSING_AUDIT**. The 12
+violations are mutating routes in `app/api/cases/*`,
+`app/api/payments/*`, `app/api/documents/*`,
+`app/api/messages/*`, `app/api/service-types/*`. Each needs a
+`logAuditEvent(...)` added — tracked as a new rolling open item;
+flip to blocking once that follow-up lands.
+
+**Rolling open item added.**
+
+- [ ] Add `logAuditEvent(...)` to the 12 `MISSING_AUDIT` routes
+      identified by A-013. Promote the audit to `--strict`
+      / blocking once the count hits 0.
+
+---
+
 ## 2026-04-23 · P1.4 · Cross-tenant PII access wrapper (`lib/cross-tenant-pii.ts`)
 
 Same branch. Closes the fourth closure item from the PRD↔Plan
@@ -2543,6 +2595,23 @@ above; this list keeps only what's actionable from here.
 - [ ] Port remaining design-pack screens (Admin Service Types
       refresh, client portal, analytics/billing dashboards,
       outcome predictor) when their sprints arrive.
+- [ ] Add `logAuditEvent(...)` to the 12 `MISSING_AUDIT` routes
+      flagged by A-013 (cases, payments, documents, messages,
+      service-types). Promote A-013 from informational to
+      `--strict` / blocking once the count hits 0.
+- [ ] Actually write `AuditLog.action='platform.cross_tenant'`
+      from `runPlatformOp` itself (docstring has promised this
+      since Sprint 0.5; never delivered). Separate commit because
+      it touches Prisma middleware and needs coverage on the
+      16+ call sites.
+- [ ] `logAuditEvent` should return `{ ok, reason }` instead of
+      swallowing errors silently, so `runCrossTenantPIIAccess`
+      can truly fail-closed in prod (today's `.catch` → warn
+      only).
+- [ ] Swap `lib/rbac-advice-class.ts`'s deny-by-default block
+      for the real `User.licensedJurisdictions.includes(...)`
+      check once Sprint 1 auth extension adds the field to the
+      schema.
 
 ---
 

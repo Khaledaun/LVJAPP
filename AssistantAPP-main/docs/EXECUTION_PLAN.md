@@ -142,6 +142,8 @@ different cadence with a different owner.
 | A-009 | Secret-scanning audit          | Per push                 | GitHub secret-scan + `mcp__github__run_secret_scanning` | `BUGS.md` (Sev-1 always) | Push      |
 | A-010 | Doc-discipline audit           | Per PR (CI)              | `scripts/lint-docs.ts` (TBD) | PR comment, fail check                  | Merge                   |
 | A-011 | KB freshness audit             | Weekly cron              | Skill owner      | GitHub issue per stale article              | None — opens issues     |
+| A-012 | `advice_class` gatekeeping     | Per PR                   | Eng + CI (`scripts/audit-advice-class.ts`) | Block merge on any `attorney_approved_advice` write unpaired with `assertCanSetAdviceClass` | Merge to `main` (PRD R1) |
+| A-013 | Audit-chain completeness       | Per PR (informational)   | Eng + CI (`scripts/audit-chain.ts`)        | List mutating routes missing `logAuditEvent` | Informational first; blocking when violations = 0 |
 
 ### 2.2 Audit runbooks
 
@@ -168,6 +170,8 @@ Every PR opened against `main` must satisfy, before merge:
 - [ ] **A-003** — `scripts/audit-tenant.ts` exits 0 (no new business model lacks `tenantId` FK; no query bypasses tenant middleware without `crossTenant: true`).
 - [ ] **A-004** — `scripts/audit-jurisdiction.ts` reports zero new occurrences of `USCIS|RFE|EB5|H1B|N400|IOLTA|DS-160|ABA Model Rule 1\.6` outside legacy comment blocks.
 - [ ] **A-005** — `scripts/audit-dynamic.ts` exits 0 (every DB-reading `route.ts(x)` / `page.tsx` declares `dynamic = 'force-dynamic'` + `revalidate = 0`, per D-025 §4).
+- [ ] **A-012** — `scripts/audit-advice-class.ts` exits 0 (every `attorney_approved_advice` write paired with `assertCanSetAdviceClass` / `guardAdviceClass` — PRD R1).
+- [ ] **A-013** — `scripts/audit-chain.ts` informational today; flip to blocking once `MISSING_AUDIT` count reaches 0.
 - [ ] **A-008** — `npm audit --omit=dev` exits 0 or all findings are documented in `BUGS.md` with planned fix dates.
 - [ ] **A-010** — `EXECUTION_LOG.md` has a new section for the head commit; if the PR changes a long-lived contract (`Claude.md`, `AGENT_OS.md`, manifest schema, RBAC model, Prisma schema) the affected doc has a bumped version header.
 

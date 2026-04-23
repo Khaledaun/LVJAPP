@@ -86,6 +86,10 @@ jobs:
       - name: A-012 · advice_class gatekeeping audit (PRD R1)
         run: npm run audit:advice-class
 
+      - name: A-013 · audit-chain completeness audit (informational)
+        run: npm run audit:chain
+        continue-on-error: true
+
   legacy-checks:
     name: legacy-checks · tsc/lint/test/build/smoke (informational)
     runs-on: ubuntu-latest
