@@ -38,7 +38,8 @@
     "smoke:auth": "playwright test e2e-tests/auth-smoke.spec.ts",
     "smoke:locale": "playwright test e2e-tests/locale-smoke.spec.ts",
     "smoke:webflow": "playwright test e2e-tests/webflow-webhook-smoke.spec.ts",
-    "smoke": "npm run audit:auth && playwright test e2e-tests/auth-smoke.spec.ts e2e-tests/locale-smoke.spec.ts e2e-tests/webflow-webhook-smoke.spec.ts"
+    "smoke:csrf": "playwright test e2e-tests/csrf-smoke.spec.ts",
+    "smoke": "npm run audit:auth && playwright test e2e-tests/auth-smoke.spec.ts e2e-tests/locale-smoke.spec.ts e2e-tests/webflow-webhook-smoke.spec.ts e2e-tests/csrf-smoke.spec.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",

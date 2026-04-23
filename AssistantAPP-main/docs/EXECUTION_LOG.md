@@ -1468,6 +1468,50 @@ one obvious place.
 
 ---
 
+## 2026-04-23 · Route-level CSRF smoke (`e2e-tests/csrf-smoke.spec.ts`)
+
+Same branch. Closes the "Route-level CSRF Playwright smoke" item
+from the post-0.7 rolling list. The unit suite
+(`__tests__/lib-csrf.test.ts`) already proved the classifier is
+correct; this spec proves the middleware is actually wired on
+every `/api/*` entry point and enforces the verdict in a real
+request/response cycle.
+
+**Files touched.**
+
+- `e2e-tests/csrf-smoke.spec.ts` — new. Two `describe` blocks,
+  both auto-skip unless `CSRF_MODE=enforce`. Under enforce:
+  cross-origin POST to `/api/cases`, `/api/signup`,
+  `/api/partner-roles` returns 403 with
+  `{ error: 'csrf_origin_mismatch' }`; missing Origin + missing
+  Referer returns 403 with a `csrf_*` error code; same-origin POST
+  may return 400/401/200 but must NOT 403 for a CSRF reason.
+  Skip-list spec exercises NextAuth (GET) and Webflow webhook
+  (POST with cross-origin Origin) — both bypass CSRF because
+  their own auth boundary is the defense.
+- `package.json` — `smoke:csrf` script + added the spec to the
+  `smoke` compound so it runs in CI's legacy-checks job. Auto-
+  skip under `CSRF_MODE=off` means it's a no-op today; flipping
+  the flag on staging immediately engages coverage.
+
+**Why three endpoints, not one.** `/api/cases` tests a generic
+state-changing POST; `/api/signup` tests the public path where
+the skip list should NOT apply; `/api/partner-roles` tests the
+403-before-auth ordering (CSRF is checked in middleware before
+`runAuthed` gets a chance to return 401).
+
+**Runbook for the staging flip.**
+
+1. Deploy with `CSRF_MODE=report-only`. Leave a week. Grep logs
+   for `[csrf] report-only` — if any legitimate client appears
+   there, that's a real bug in the client (missing Origin on a
+   state-changing call); fix at the client.
+2. Flip to `CSRF_MODE=enforce`. Re-run `npm run smoke` —
+   `smoke:csrf` now executes its assertions instead of skipping.
+3. If green, promote to prod.
+
+---
+
 ## 2026-04-23 · Migrate 14 LEGACY SKILL.md files to v0.1 frontmatter
 
 Same branch. The A-011 audit shipped earlier on this branch
