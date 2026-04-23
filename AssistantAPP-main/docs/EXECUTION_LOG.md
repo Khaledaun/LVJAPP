@@ -1468,6 +1468,53 @@ one obvious place.
 
 ---
 
+## 2026-04-23 · `/api/status` staff-guarded introspection + `/api/health` 503-on-DB-down
+
+Same branch. Two complementary deploy-readiness endpoints.
+
+**Files touched.**
+
+- `app/api/status/route.ts` (new) — staff-guarded GET. Combines
+  `validateEnv()` (from the env validator), `csrfMode()` +
+  `rateLimitMode()` live flag values, per-agent
+  flag/subscription state, and best-effort `gitSha` from
+  `VERCEL_GIT_COMMIT_SHA` / `SOURCE_COMMIT` / `GIT_COMMIT` into a
+  single GET. Separate from `/api/health` because the payload
+  leaks enough env + flag detail to warrant the `runAuthed('staff')`
+  guard. Read-only; never subscribes agents. `ok: false` iff the
+  env has any errors — warnings are informational.
+- `app/api/health/route.ts` (changed) — now returns HTTP **503**
+  when the DB check throws, HTTP 200 otherwise. Uptime monitors
+  (UptimeRobot etc.) key off the status code, not the JSON
+  `db: 'error'` field — the prior 200-with-error-body would have
+  silently stayed green on their dashboards. `SKIP_DB=1` keeps
+  the 200 status (intentional dev loop, not a real down).
+- `__tests__/api-status.test.ts` (new) — 8 cases: payload shape,
+  dev-downgraded warnings, live CSRF/rate-limit mode reflection,
+  agent flag vs subscription separation, `gitSha` resolution,
+  `ok: false` on prod + missing secrets, A-005 force-dynamic
+  declaration.
+- `__tests__/api-health.test.ts` (new) — 4 cases: 200 on DB
+  success, 503 on DB error, 200 skipped under `SKIP_DB=1`, no
+  env/PII leakage in the public payload.
+
+**Why two endpoints, not one.** `/api/health` is in the A-002
+`INTENTIONAL_PUBLIC` allowlist because UptimeRobot can't carry
+a session cookie. `/api/status` is `runAuthed('staff')` because
+it exposes env-validate output, agent-flag names, and rollout-
+mode strings — none of that belongs on a public endpoint.
+
+**Operator runbook (when this lands in prod).**
+
+1. `curl -sf https://<deploy>/api/health` — expect 200 JSON
+   `{ ok: true, db: 'ok', time: ... }` within 30 s.
+2. Log in as a staff user, hit `/api/status` in the browser —
+   expect `ok: true`, `env.errors: []`, flags reflect the
+   deployed values. Any `env.errors` entries are deploy-
+   blocking (see `lib/env-validate.ts` rule table).
+
+---
+
 ## 2026-04-23 · Project documentation refresh + progress snapshot
 
 Same branch. Two docs updates to consolidate what the post-0.7
