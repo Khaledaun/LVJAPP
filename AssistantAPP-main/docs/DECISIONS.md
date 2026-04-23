@@ -548,6 +548,91 @@
 
 ---
 
+## D-025 · Supabase-connect contract: pooler/direct URL split, `@@map` discipline, `force-dynamic` on DB-reading routes, case-insensitive email
+
+- **Date.** 2026-04-23
+- **Status.** accepted
+- **Context.** D-023 / D-024 bind the *tenancy* and *RLS* patterns
+  for when Supabase connects. They don't bind the Prisma /
+  Next.js / Supabase plumbing that sits around RLS, and each item
+  below has been a real, costly foot-gun in a sibling project
+  (KhaledAunSite digest, `docs/xrepo/khaledaunsite/02-known-
+  pitfalls-and-fixes.md`). Capturing the contract now so the first
+  `supabase db push` and the first production deploy don't
+  re-discover them.
+- **Decision.** On first Supabase connect, the following are
+  binding, not advisory:
+  1. **Two URLs, not one.** `DATABASE_URL` for Prisma runtime uses
+     the Supabase pooler on port `6543` with
+     `?pgbouncer=true&connection_limit=1`. `DIRECT_URL` uses the
+     direct connection on port `5432` for migrations. Prisma schema
+     declares both via `datasource db { url = env("DATABASE_URL");
+     directUrl = env("DIRECT_URL") }`. `packages/env` equivalent
+     validation (our `lib/env.ts` or successor) fails fast if
+     either is missing.
+  2. **Prisma singleton stays singleton.** `getPrisma()` in
+     `lib/db.ts` is the only instantiation path. A CI lint rule
+     lands post-Sprint-0.5.1 banning `new PrismaClient()` outside
+     that file.
+  3. **`@@map` discipline for raw queries.** Raw Supabase client
+     calls (if any — RLS policies, admin scripts, future cron
+     handlers that bypass Prisma) use the *table* name from
+     `@@map`, not the Prisma *model* name. `Case` → `cases`,
+     `ServiceType` → `service_types`, etc. A comment header on
+     every raw-query file states this, and `scripts/audit-prisma.ts`
+     (C-004 additive-only audit) grows a sub-check for
+     `supabase.from('<PascalCase>')` patterns in the commit that
+     lands the first raw query.
+  4. **`force-dynamic` on every DB-reading route and page.** Any
+     `app/api/*` route handler that imports `getPrisma` (or a
+     `runAuthed` / `runPlatformOp` helper) declares
+     `export const dynamic = 'force-dynamic'` and
+     `export const revalidate = 0` at the top of the file. Same
+     applies to any `page.tsx` that calls `getPrisma()` directly or
+     via a Server Component fetch. Missing this is not a
+     warning — it's an auth-bypass risk because static HTML is
+     served to everyone regardless of middleware. A new audit
+     **A-005 (dynamic-route audit)** lands in the same PR that
+     connects Supabase, and is required (not informational) from
+     day 1.
+  5. **Case-insensitive email normalization.** Every path that
+     reads or writes `User.email` lowercases first. NextAuth's
+     email-providers do this by default — preserve it. If we ever
+     migrate to Supabase Auth (open question in `SESSION_NOTES.md`),
+     the migration script normalizes existing rows first.
+- **Why a single decision, not five.** These five items share one
+  trigger — the first `supabase db push` — and they're all so
+  mechanical that debate per-item is waste. One D-NNN keeps the
+  pre-connect checklist grep-able in one place.
+- **Relation to D-024.** D-024 pins the *policy* shape (`USING` +
+  `WITH CHECK`, `app.current_tenant()` via `SET LOCAL`). D-025 pins
+  the *connection + route* shape that has to be correct before
+  D-024's policies can do their job. They're complementary; neither
+  supersedes the other.
+- **Consequences.**
+  - The Supabase-connect PR must land items (1)–(5) plus the
+    policy file from D-024 before any tenant user is allowed in.
+  - Post-Sprint-0.5.1 cleanup PR adds A-005 (dynamic-route audit)
+    even before Supabase connects, so every new route lands with
+    `force-dynamic` from the moment Prisma is imported. Today's
+    routes are DB-backed and already run against `SKIP_DB=1`; the
+    audit fires on a fresh Postgres.
+  - The `scripts/preflight.sh` pattern from the KhaledAunSite
+    digest lands as a separate follow-up (post-0.7) and is the
+    single-command driver for (1)–(5) locally.
+- **Status of implementation.** Deferred to Supabase-connect PR;
+  this decision binds the pattern so the migration author doesn't
+  re-discover it.
+- **Follow-ups.**
+  - `scripts/audit-dynamic.ts` (A-005) — next post-0.7 cleanup PR.
+  - `scripts/audit-prisma.ts` — add `supabase.from('<PascalCase>')`
+    check in the commit that lands the first raw Supabase query.
+  - `scripts/preflight.sh` — follow-up PR post-Sprint-0.7.
+  - `lib/env.ts` — add `DIRECT_URL` to the required-env schema when
+    Supabase connects.
+
+---
+
 ## How to add a decision
 
 1. Grab the next `D-NNN` number.

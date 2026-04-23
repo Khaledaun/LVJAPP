@@ -7,6 +7,137 @@ landing in code should graduate into `DECISIONS.md` or
 
 ---
 
+## 2026-04-23 — Cross-repo review (pass 2) — KhaledAunSite digest
+
+**Scope.** The MCP allowlist for this session was again locked to
+`khaledaun/lvjapp`, so `khaledaunsite` wasn't readable via MCP. The
+user pushed a 7-file KhaledAunSite engineering digest into
+`AssistantAPP-main/docs/` on main (files `01-architecture-and-stack`
+through `07-starter-checklist`), which this pass reviewed and filed
+under `AssistantAPP-main/docs/xrepo/khaledaunsite/`. Digest is the
+team's own export from the KhaledAunSite project — more like a post-
+mortem playbook than a live repo dump, so "no RLS policy file"
+doesn't mean the project lacks RLS; it means the digest describes
+their RLS intent, not the policies themselves.
+
+### (1) Supabase RLS
+
+- **Pattern in the digest.** Per-user `user_id = auth.uid()` with an
+  `is_public` flag on tables that can be shared (01 "Key
+  architectural decisions", 07 Week-1 checklist "Turn on RLS for
+  every user-data table at the moment you create it", 02 AI-06
+  "Search endpoints must scope: `user_id = auth.uid() OR is_public =
+  true`"). Role / tenant GUCs are not used.
+- **Does NOT supersede D-024.** KhaledAunSite is single-tenant
+  per-user; LVJ is multi-tenant per-org. `auth.uid()` is a coarser
+  key than `app.current_tenant()`, and their pattern doesn't address
+  the cross-tenant case that D-023 / D-024 exist to solve. D-024
+  stands as-is.
+- **Two refinements worth adopting.**
+  1. **RLS at table-creation time, not retrofit.** Digest explicitly
+     lists "Defer multi-user RLS" under "What we would NOT do again"
+     (01). Our current plan defers RLS until Supabase connects — not
+     a defer of the decision, but of the physical migration. The
+     risk is that new tables land between now and Supabase connect
+     without an associated policy draft. **Action:** when we add any
+     tenant-scoped model post-Sprint 0.5, the same migration PR
+     records the `CREATE POLICY` stub in `packages/db/sql/rls-
+     policies.sql` (even pre-connect). Add this to the DoD in
+     EXECUTION_PLAN §11.1 when Supabase connects.
+  2. **Knowledge / search endpoints need explicit scoping.** RLS
+     covers the base table, but search/aggregation paths that hit a
+     materialized view or FTS index often bypass it silently. The
+     A-003 audit should grow a sub-check: any route that reads from
+     `tsvector`/FTS/materialized-view sources re-asserts `tenantId`
+     in the Prisma where clause. Captured in SESSION_NOTES (3)
+     below for post-Sprint-0.7 follow-up.
+
+### (2) Multi-tenant Stripe Connect
+
+Absent from the digest — no `account_links`, no webhook rotation, no
+`PlatformAccount` precedent. Same finding as pass 1. Sprint 8.5 /
+Sprint 15 still have no sibling crib; Stripe docs + test mode are
+the source of truth. No sprint re-ordering implied.
+
+### (3) CI gate shape
+
+Digest has no two-tier CI structure — just standard GH Actions
+(`typecheck + lint + test + build`) plus a developer-side
+`scripts/preflight.sh` with 14 named checks (03). **Not cleaner than
+our `gates` + `legacy-checks` split.** But the preflight-script
+pattern is worth cribbing as a separate tool: a one-command "am I
+safe to push?" that runs A-002, A-003, A-004, A-010, prisma
+generate, typecheck, lint, test, build, and `/api/health`. Lands as
+a small follow-up (after Sprint 0.7), not in this PR.
+
+### (4) BUGS.md / known-gaps that map onto LVJ's surface
+
+Digest file 02 is essentially their pitfall catalogue. The items
+that map onto Sprint 0.5+ work we've already done or are about to
+do — recorded here so we don't re-discover them and don't silently
+violate them:
+
+| # | Pitfall (KhaledAunSite) | LVJ mapping |
+|---|--------------------------|-------------|
+| 1 | Next.js pre-renders API routes that touch DB at build → auth bypass on static routes behind middleware only | Every `app/api/*` route and every page that reads DB MUST declare `export const dynamic = 'force-dynamic'` + `export const revalidate = 0`. Add as an A-NNN audit when Supabase connects. |
+| 2 | Prisma + PgBouncer silently breaks prepared statements | Runtime `DATABASE_URL` uses `:6543?pgbouncer=true&connection_limit=1`; `DIRECT_URL` uses `:5432` for migrations. **Binding on Supabase connect.** → D-025. |
+| 3 | `PrismaClient`-per-route exhausts pool | We already have a singleton in `lib/db.ts` (`getPrisma()`). Preserve. Add lint/CI rule post-0.5.1. |
+| 4 | Raw Supabase queries use table name, not Prisma model name | When raw SQL lands (RLS policies, cron jobs), `supabase.from('cases')` not `.from('Case')`. → D-025. |
+| 5 | Supabase emails are case-sensitive | Normalize to lowercase at write + login. Applies to any new auth flow; NextAuth's email-providers already lowercase by default, confirm before switch. |
+| 6 | Static pre-render + middleware auth = bypass | Mitigated by (1); call out again because it's the highest-severity of the set. |
+| 7 | CSRF `Content-Type: application/json` exemption is a bypass | Our middleware should have no content-type exemption. Verify in a post-0.5.1 audit. |
+| 8 | Rate limiter reads leftmost `X-Forwarded-For` | Use rightmost XFF or prefer `x-real-ip`. Applies when we add rate limiting. |
+| 9 | Unauthenticated `/api/cron/*` endpoints | Our `vercel.json` crons already need a `CRON_SECRET` header check in the route. A-002 currently whitelists `INTENTIONAL_PUBLIC_ROUTES`; cron routes should be inside a `runCron(req, cb)` helper that checks the header, not on the public allow-list. Post-0.5.1 cleanup. |
+| 10 | E2E tests hardcode paths | Derive from route config. Relevant for Sprint 0.7 Playwright. |
+| 11 | Settings forms that don't persist | Every form gets a write → read-back test. Relevant for Sprint 0.7 and 8.5. |
+| 12 | AI hallucinated citations / runaway cost / no circuit breaker | Covered by D-012 (cost caps). Circuit breaker + citation verifier to add in AOS Phase 2 design. Not new, but worth re-confirming. |
+| 13 | PII leaked into AI self-learning memory | A-010 / `scripts/pii-scrub.ts` already in place. Extend to AOS memory stores. |
+
+Items 2 and 4 are binding *patterns* for the first `supabase db
+push`, not just advisory — captured as **D-025** in the same commit.
+Items 1, 6–9 land as prevention items in the next post-Sprint-0.7
+cleanup PR (post-migration cleanup + A-NNN for `force-dynamic`
+audit).
+
+### (5) What the digest says that LVJ is NOT adopting
+
+- **Monorepo layout (`apps/web` + `apps/dashboard` + `packages/*`).**
+  We're a single Next.js app at the repo root; splitting mid-stream
+  is a large, risky migration for no customer-facing value. Noted
+  for any future split, not now.
+- **Supabase Auth replacing NextAuth.** Open architectural question
+  already captured in the next-session block below; pass 2 doesn't
+  change that status.
+- **Israeli-legal skill pack + Hebrew fonts.** Different jurisdiction
+  (D-006: Portugal + UAE) and different locale (D-015: Arabic +
+  English). Pattern is useful, content is not.
+- **4-brain AI architecture as a distinct service layout.** Their
+  own digest says "don't literally build four services; build one
+  `runAIRequest()` wrapper" — we already do this via `lib/agents/
+  invoke.ts` (D-002). Validates our direction.
+
+### (6) Actions taken in this commit
+
+- `docs/xrepo/khaledaunsite/*` — the 7 digest files moved out of the
+  canonical docs root into a dedicated subdirectory so they don't
+  get mistaken for LVJ's own playbook.
+- `docs/DECISIONS.md` D-025 — Supabase-connect contract: runtime vs.
+  migration URL split, `@@map` discipline for raw queries, case-
+  insensitive email normalization, `force-dynamic` on DB-touching
+  routes. Complementary to D-024 from PR #13.
+- `docs/SESSION_NOTES.md` — this section, appended above the pass-1
+  section that landed via PR #13.
+- `docs/EXECUTION_LOG.md` — dated entry for the PR.
+- No EXECUTION_PLAN.md edits: PR #13 already edited §10 with pass-1
+  cribs (Sprint 0.5.1 recipe + §10.5 / §10.8 Stripe-Connect absence
+  notes). Pass-2 cribs that graduate into §10 — the RLS-stub-at-
+  table-creation DoD (§11.1), the FTS-scoping A-003 sub-check
+  (§2.1), the D-025 items as Supabase-connect preflight (§12.2) —
+  land in the post-Sprint-0.7 cleanup PR alongside the other
+  prevention items.
+
+---
+
 ## 2026-04-23 — Cross-repo review (yalla-london + KhaledAun.com)
 
 **Scope.** Intended targets: `khaledaun/yalla-london` and
