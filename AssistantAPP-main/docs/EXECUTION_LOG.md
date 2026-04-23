@@ -1468,6 +1468,41 @@ one obvious place.
 
 ---
 
+## 2026-04-23 · P0.1 · Arabic localization skill (`skills/arabic-localization/SKILL.md`)
+
+Same branch. Closes the first P0 gap from the PRD↔Plan audit.
+PRD §4.9 #8 explicitly listed this skill file as a Sprint 0.7
+deliverable; it was never created. Content-only (no infra).
+
+**File.**
+
+- `skills/arabic-localization/SKILL.md` (new, ~180 lines). v0.1
+  frontmatter schema. Sections: dialect + register choice
+  (MSA formal, with client-portal microcopy permitted formal-
+  warm), ALA-LC name transliteration table with practical rules
+  for SEF/AIMA + GDRFA/ICA forms (no diacritics, `al-` with
+  hyphen, passport-MRZ-wins conflict resolution), numerals +
+  dates + calendars (Eastern Arabic numerals in prose; Western
+  + Gregorian on filings; Hijri parenthetical only), RTL
+  editorial traps (bidi punctuation, LRM for mixed-script
+  digits, guillemets over double-quotes, no `word-break:
+  break-all` on AR), 10-entry legal-register vocabulary freeze
+  (residency permit / golden visa / family reunification /
+  additional-evidence / client trust account / etc.) + HITL
+  review contract.
+
+**Data model implication called out.** Every `Client`,
+`Partner`, `ServiceProvider`, `LeadContact` needs BOTH
+`nameArabic` + `nameLatin` fields at creation. Single-name-field
+records are Sev-3 for any row created after Sprint 0.5. Schema
+doesn't enforce this today — captured here so Sprint 10 + Sprint
+4 both know the constraint before they add their models.
+
+**Audit result.** A-011 scans 31 articles (was 30); all FRESH.
+No INVALID / LEGACY regressions.
+
+---
+
 ## 2026-04-23 · PRD ↔ Plan alignment audit
 
 Same branch. Cross-checked `docs/PRD.md` v0.3 against
