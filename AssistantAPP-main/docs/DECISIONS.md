@@ -421,6 +421,66 @@
 
 ---
 
+## D-023 · Tenant isolation at the app layer; Supabase RLS is defense-in-depth, not the primary gate
+
+- **Date.** 2026-04-23
+- **Status.** accepted
+- **Context.** Sprint 0.5 lands the multi-tenancy foundation. Before
+  Sprint 8.5 (onboarding), Sprint 15 (payouts), and the marketing-
+  HITL queue (D-010) can ship, we need one source of truth for "which
+  rows may this request touch?". Supabase provides Postgres RLS; the
+  app also has Prisma middleware. Which is the primary gate?
+- **Decision.** The **app layer** is the primary gate:
+  1. Every business model carries a `tenantId` column, denormalized
+     down to child tables (Document, Payment, Message, etc.) for RLS
+     friendliness and query-plan simplicity.
+  2. A Prisma client extension (`buildTenantExtension` in
+     `lib/tenants.ts`) auto-filters reads and auto-sets `tenantId`
+     on writes when a request has an active `TenantContext`
+     (AsyncLocalStorage).
+  3. Route handlers enter a context via `runAuthed(guard, handler)`
+     or the explicit `runPlatformOp(user, reason, cb)` escape hatch
+     for LVJ_* staff. Every `runPlatformOp` writes an `AuditLog`
+     row with `action='platform.cross_tenant'`.
+  4. Supabase RLS lands as a **second layer** when infra connects.
+     It is strictly additive; the app-layer gate never goes away.
+- **Why app-layer first, not RLS-first.**
+  - Development velocity: the middleware works today, sandbox-
+    without-DB (`SKIP_DB=1`). RLS requires session propagation,
+    role mapping, and a migration-managed policy file.
+  - Debuggability: a TypeScript error ("no tenant context") is
+    easier to trace than a Postgres `permission denied` surfacing
+    deep in a Prisma stack.
+  - Defense-in-depth: RLS layered on app-layer scoping is strictly
+    additive. The reverse leaves a class of bugs — raw SQL in a
+    repl, a background job missing `SET LOCAL tenant_id`, a Prisma
+    middleware disabled by a config typo — silently cross-tenant.
+- **Consequences.**
+  - Every new route handler MUST enter a tenant context.
+    `scripts/audit-tenant.ts` (A-003) fails CI if a new route uses
+    Prisma without a tenant helper.
+  - `TENANT_SCOPED_MODELS` in `lib/tenants.ts` MUST agree with the
+    Prisma schema. A-003 also fails if the two drift.
+  - `User`, `NotificationLog`, `VoiceCallLog`, `AuditLog`,
+    `AutomationLog` keep `tenantId` nullable so platform-level rows
+    can still land. Middleware accepts null on reads but refuses
+    writes from a null context unless wrapped in `runPlatformOp`.
+  - `Tenant`, `PartnerRole` are not tenant-scoped themselves.
+    `TenantContract` has a `tenantId` and is scoped like any other
+    row (a tenant can only see their own contract).
+  - Compound uniqueness (e.g. `(tenantId, caseNumber)`) is a
+    follow-up in Sprint 0.5.1 once the first non-LVJ tenant lands.
+- **Follow-ups.**
+  - Migrate the existing 24 API routes off `guard* + inline prisma`
+    onto `runAuthed(...)` (Sprint 0.5.1). Until then A-003 runs as
+    informational.
+  - Supabase RLS policy file lands with the first `supabase db push`
+    (post-infra connect, PRD Phase B).
+  - Stripe Connect identifiers move from `TenantContract` to a
+    richer `PlatformAccount` model in Sprint 15.
+
+---
+
 ## How to add a decision
 
 1. Grab the next `D-NNN` number.

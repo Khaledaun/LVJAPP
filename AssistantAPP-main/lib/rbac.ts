@@ -17,6 +17,10 @@ export type SessionUser = {
   email?: string | null
   role: string
   officeId?: string | null
+  // Sprint 0.5 · D-023 — null for platform staff (LVJ_*), non-null for
+  // tenant users. Populated from the session cookie; loaded in
+  // loadSessionUser() below.
+  tenantId?: string | null
 }
 
 type AccessResult = { user: SessionUser }
@@ -32,7 +36,9 @@ const STAFF_ROLES = new Set([
 
 function devBypassUser(): SessionUser | null {
   if (process.env.SKIP_AUTH === '1' || process.env.NEXT_PUBLIC_SKIP_AUTH === '1') {
-    return { id: 'dev-bypass', role: 'LVJ_ADMIN', officeId: null }
+    // Dev bypass is a platform-staff user (tenantId=null) so sandbox
+    // tests can freely read across tenants via runPlatformOp().
+    return { id: 'dev-bypass', role: 'LVJ_ADMIN', officeId: null, tenantId: null }
   }
   return null
 }
@@ -63,6 +69,7 @@ async function loadSessionUser(): Promise<SessionUser | null> {
       email: u.email ?? null,
       role: u.role ?? 'CLIENT',
       officeId: u.officeId ?? null,
+      tenantId: u.tenantId ?? null,
     }
   } catch {
     return null
