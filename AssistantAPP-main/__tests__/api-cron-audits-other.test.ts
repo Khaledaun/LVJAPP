@@ -105,6 +105,33 @@ describe('cron audit handlers · parity', () => {
     }
   })
 
+  it('A-011 audit-kb-staleness-weekly · ?now=YYYY-MM-DD lets staff replay a past-dated audit (cron DoD §11.5: fixed clock)', async () => {
+    // 2026-08-01 is > 90 days past the v0.1 articles' reviewed_at:
+    // 2026-04-22, so STALE count should be > 0.
+    const req = new Request(
+      'http://localhost/api/cron/audit-kb-staleness-weekly?now=2026-08-01',
+      { method: 'GET' },
+    )
+    const res = await kbWeekly(req)
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.id).toBe('a011')
+    expect(body.now).toBe('2026-08-01')
+    expect(body.counts.STALE).toBeGreaterThan(0)
+  })
+
+  it('A-011 audit-kb-staleness-weekly · ?now=garbage returns 400 invalid_now', async () => {
+    const req = new Request(
+      'http://localhost/api/cron/audit-kb-staleness-weekly?now=not-a-date',
+      { method: 'GET' },
+    )
+    const res = await kbWeekly(req)
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.ok).toBe(false)
+    expect(body.error).toBe('invalid_now')
+  })
+
   it('A-011 audit-kb-staleness-weekly · informational, carries articles array + FRESH/STALE/EXPIRED/INVALID/LEGACY counts', async () => {
     const res = await kbWeekly(mkReq('/api/cron/audit-kb-staleness-weekly'))
     expect(res.status).toBe(200)

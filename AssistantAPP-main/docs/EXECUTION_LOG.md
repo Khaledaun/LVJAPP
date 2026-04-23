@@ -1468,6 +1468,61 @@ one obvious place.
 
 ---
 
+## 2026-04-23 · Sprint 0.7.5 audit + plan-review + 3 follow-ups (lib-audits tests, /admin/status, branch-split-plan)
+
+Same branch. Final sweep on the post-0.7 cleanup sprint after the
+"do all + review the plan + audit your work" prompt.
+
+**Audit phase.** Ran every gate against the branch HEAD:
+A-002 32 GUARDED / 5 PUBLIC / 0 UNAUTHED · A-003 0 schema +
+0 route violations · A-004 38 non-allowlisted hits (informational,
+unchanged) · A-005 28 DB / 25 STATIC / 0 violations · A-010 clean ·
+A-011 30 FRESH / 0 anything-else. YAML for the 3 workflow files
+parses; `vercel.json` + `package.json` parse. Every file referenced
+in EXECUTION_LOG entries on this branch resolves on disk. Zero
+TODO / FIXME / XXX in the new code. Test imports map to real
+exports. No regression from the refactor commit (`0408833`):
+both lib + CLI paths produce identical reports.
+
+**Plan review.** §10.1 "Current position" was stale (referenced
+the 2026-04-23 cross-repo branch as current); rewritten to reflect
+the post-0.7 cleanup PR + roadmap status. §12.1 was missing the
+`/api/status` + `/api/health` + `lib/audits/issue-opener.ts`
+entries; added. §11.5 DoD for a cron / audit calls for "fixed
+clock" coverage — A-002 is covered, but A-011 cron didn't accept
+a clock until this commit (see below).
+
+**Three follow-ups landed.**
+
+- `__tests__/lib-audits.test.ts` (new) — 16 cases. Direct unit
+  tests for `runAuditAuth` / `runAuditDynamic` / `runAuditTenant`
+  / `runAuditJurisdiction`. Cover the four-bucket structure,
+  INTENTIONAL_PUBLIC sync, runCron-in-GUARD_PATTERNS invariant,
+  schema↔allowlist agreement, allowlist-self-protection, etc.
+- `app/api/cron/audit-kb-staleness-weekly/route.ts` (changed) —
+  `?now=YYYY-MM-DD` query param threads through to
+  `runAuditKbStaleness({ now })` for past-dated replay. 400 +
+  `error: invalid_now` on garbage input. Closes the §11.5 fixed-
+  clock DoD gap. +2 cases in
+  `__tests__/api-cron-audits-other.test.ts`.
+- `app/admin/status/page.tsx` (new) — staff-only SSR dashboard
+  mirroring `/api/status`. Reads env validator + flag modes +
+  agent state; never calls the DB; safe to render even when
+  Postgres is down. Uses the existing `AppShell` + tailwind
+  utilities; matches the `/admin/approvals` pattern.
+- `docs/branch-split-plan.md` (new) — recommended split of the
+  22-commit branch into 3 sub-PRs (Audit framework / Cron +
+  middleware / Workflows + env + plan refresh) for tighter review
+  scope. Cherry-pick recipes, conflict-surface analysis, and the
+  "merge as one" alternative documented.
+
+**Rolling open items.** Consolidated and re-grouped into four
+buckets: operator-action, infra-blocked, domain/org,
+sandbox-only blockers, code follow-ups. Removed 8 already-landed
+entries that were left strikethrough'd.
+
+---
+
 ## 2026-04-23 · Wire A-011 kb-staleness cron to the issue-opener
 
 Same branch. The earlier issue-opener commit wired A-002 only —
@@ -2173,20 +2228,73 @@ then flip to `enforce`.
 
 ## Rolling open items
 
-Copied from the commits above; delete lines here as they land.
+Consolidated 2026-04-23 after Sprint 0.7.5 close. Landed entries
+live as struck-through history in their original commit log entries
+above; this list keeps only what's actionable from here.
 
-- [ ] Run `npx prisma migrate dev --name sprint0-foundation && npx prisma migrate dev --name aos-phase1 && npx prisma migrate dev --name add-tenancy` once a dev DB is reachable. Until then, Prisma client types will not reflect the new models and tests that touch DB are skipped via `SKIP_DB=1`.
-- [x] ~~Post-Sprint-0.7 cleanup PR — A-005 dynamic-route audit, preflight, runCron, CSRF + rate-limit scaffolding (all landed 2026-04-23).~~
-- [x] ~~Wire `assertCsrf` into the global middleware matcher~~ (landed 2026-04-23, `CSRF_MODE=off` default; flip to `report-only` in staging, then `enforce` once logs are clean).
-- [ ] Flip `CSRF_MODE` from `off` → `report-only` on staging, then `enforce` after a clean log window.
-- [ ] Ship Upstash backend for `checkRateLimit` alongside the Upstash env vars + prod smoke. Until it lands, `RATE_LIMIT_MODE=enforce` in prod is best-effort only (in-memory Map doesn't share across Edge instances).
-- [ ] Capture an `owner → GitHub handle` map for skills/*.md frontmatter `owner:` values so the A-011 issue-opener can populate `assignees`. Today the role slugs (`founding-engineer`, `platform-marketing`, `tenant-counsel-pt`, `tenant-counsel-ae`, `platform-admin`, `platform-engineering`) aren't GitHub-addressable.
-- [x] ~~Wire rate-limit into `middleware.ts` with `RATE_LIMIT_MODE` (off | report-only | enforce)~~ (landed 2026-04-23, default `off`). Same staging flip as CSRF.
-- [ ] Flip `RATE_LIMIT_MODE` from `off` → `report-only` on staging once CSRF enforce is green, then `enforce` after the Upstash backend lands.
-- [x] ~~Bootstrap the Orchestrator from `/api/agents/bootstrap`~~ (landed 2026-04-23). Staff-guarded `POST` binds every `AGENT_*_ENABLED=1` agent via the now-idempotent `subscribeAgent`; `GET` is read-only introspection. Flags default OFF, so cold-start POST without flags set is a no-op.
-- [ ] Flesh out the KB v0.1 articles (`core/disclaimers/upl.md`, `core/disclaimers/outcome.md`, `core/tone/*.md`, `core/escalation/matrix.md`, `core/privacy/consent.md`, `core/privacy/retention.md`, `core/languages.md`).
-- [ ] Execute the jest suite in an environment with `node_modules` installed — none of the tests have been executed in this sandbox.
-- [ ] Port the remaining design-pack screens (Admin Service Types refresh, client portal, analytics/billing dashboards, outcome predictor) when their sprints arrive.
+**Operator-action (not code):**
+
+- [ ] Provision Vercel prod env vars: `CRON_SECRET` (required —
+      cron handlers return 500 without it), `NEXTAUTH_SECRET`
+      (required), `GITHUB_TOKEN` + `GITHUB_REPOSITORY` (issue-opener
+      log-only without them). Verify with `npm run env:check`.
+- [ ] Flip `CSRF_MODE`: staging `off` → `report-only` (one week of
+      log review) → `enforce` → prod `enforce`.
+- [ ] Flip `RATE_LIMIT_MODE`: same staircase, but hold prod
+      `enforce` until the Upstash backend lands.
+- [ ] Flip per-agent flags (`AGENT_INTAKE_ENABLED`,
+      `AGENT_DRAFTING_ENABLED`, `AGENT_EMAIL_ENABLED`) on staging,
+      POST `/api/agents/bootstrap` to bind, verify via
+      `/admin/status`.
+
+**Infra-blocked:**
+
+- [ ] Supabase connect (D-025 full checklist). Unblocks: `prisma
+      migrate dev`, the 5 DB-dependent cron handlers
+      (audit-cost-daily, deadline-alert, marketing-hitl-escalate,
+      commission-settle, analytics-rollup), real `/api/health`
+      results in prod, route-level CRUD smoke specs.
+- [ ] Upstash Redis credentials → ship `checkRateLimit` Upstash
+      backend so `RATE_LIMIT_MODE=enforce` in prod becomes
+      cross-region correct.
+- [ ] Stripe test keys + Connect client id → unblocks Sprint 8.5
+      onboarding + commission-settle cron.
+- [ ] Webflow Data API token + webhook secret → unblocks Sprint 13
+      marketing automation slice.
+- [ ] ElevenLabs AR voice id, SendGrid + Twilio test creds →
+      unblocks Sprint 5 channel smokes.
+
+**Domain / org:**
+
+- [ ] PT-licensed lawyer review of the 7 v0.1 KB articles under
+      `skills/core/` to flip `confidence: draft` → `authoritative`
+      (D-024).
+- [ ] Capture `owner → GitHub handle` map so the A-011 issue-opener
+      can populate `assignees`. Today the role slugs
+      (`founding-engineer`, `platform-marketing`,
+      `tenant-counsel-pt`, `tenant-counsel-ae`, `platform-admin`,
+      `platform-engineering`) aren't GitHub-addressable.
+- [ ] Engage UAE-licensed lawyer reviewer (v1.x).
+- [ ] Add a native AR QA reviewer to the marketing-HITL chain
+      (D-015).
+- [ ] DPO + DPA template for GDPR (Sprint 16 pre-req).
+- [ ] On-call rotation for Sev-1 paging (C-020 + B-Sev-1).
+
+**Sandbox-only blockers (lift on a real dev box):**
+
+- [ ] Execute the jest suite — `node_modules` not installable in
+      this sandbox; the 100+ tests authored here haven't been run.
+- [ ] Run `npx prisma migrate dev` once Postgres is reachable.
+
+**Code follow-ups:**
+
+- [ ] Issue #11 risky half — `@prisma/client` enum re-export,
+      `@types/react` recharts override, `lib/agents/invoke.ts`
+      generic cast. Lands on its own branch; flips
+      `legacy-checks` from informational to blocking.
+- [ ] Port remaining design-pack screens (Admin Service Types
+      refresh, client portal, analytics/billing dashboards,
+      outcome predictor) when their sprints arrive.
 
 ---
 

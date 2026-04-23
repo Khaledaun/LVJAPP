@@ -937,17 +937,27 @@ described with: goal, entry criteria, subagent recipe (from §6.5
 when relevant), deliverables, smoke battery, exit criteria, typical
 timeout risks.
 
-### 10.1 Current position (as of this file's creation)
+### 10.1 Current position (last updated 2026-04-23)
 
 - Merged: PR #7 (Sprint 0 foundation), PR #8 (Phase 0 audit), PR #9
   (Claude.md v4.0 rebaseline), PR #10 (execution-plan framework),
-  PR #12 (Sprint 0.5 — multi-tenancy foundation per D-023).
-- On branch `claude/cross-repo-review-sprint-05-MT58G`
-  (2026-04-23 session): cross-repo review of `yalla-london` +
-  `KhaledAun.com`, D-024, Sprint 0.5.1 runAuthed migration, A-003
-  flipped to blocking in the `gates` job.
-- Next sprint in D-019 order: **Sprint 0.7 — AR + RTL** (Playwright
-  EN + AR visual regression per §10.4 exit criteria).
+  PR #12 (Sprint 0.5 multi-tenancy), PR #13 (Sprint 0.5.1 runAuthed
+  + A-003 blocking), PR #14 (cross-repo review pass 2 + D-025),
+  PR #16 (Issue #11 safe half).
+- On branch `claude/post-0.7-a-005-dynamic-audit-X4mBc` (this PR):
+  Sprint 0.7.5 post-0.7 cleanup (see §10.4.1) — A-005 dynamic-route
+  audit, D-026 numbering reconciliation, runCron + CSRF + rate-limit
+  middleware, agent bootstrap, env validator, A-011 KB freshness,
+  4 audit cron handlers + issue-opener, A-008 + A-010 GitHub Actions
+  workflows, `/api/status` + `/api/health` 503-on-DB-down, preflight.
+- Next: review + merge (potentially split into 2-3 sub-PRs per
+  §12.5 #1), then operator flag flips (CSRF_MODE / RATE_LIMIT_MODE
+  staircase) and Supabase-connect PR (D-025 full checklist).
+- Roadmap status: foundation + post-0.7 cleanup ~85% done; product
+  features wired to live data ~25% done; integration layer ~15%
+  done. Aggregate ~47% of full roadmap. See `EXECUTION_LOG.md`
+  "Project documentation refresh + progress snapshot" for the
+  per-axis breakdown.
 
 ### 10.2 Sprint 0.1 — close 11 unauthed routes
 
@@ -1261,6 +1271,16 @@ direction.
 - [x] **`app/api/agents/bootstrap/route.ts`** — staff-guarded POST
       binds flag-enabled agents via idempotent
       `orchestrator.subscribeAgent`.
+- [x] **`app/api/status/route.ts`** — staff-guarded GET combining
+      `validateEnv()` + live CSRF/rate-limit mode + per-agent flag
+      and subscription state + git SHA. Deploy-readiness probe.
+- [x] **`app/api/health/route.ts`** — public; returns 503 on DB
+      down so uptime monitors key off the status code, not the JSON
+      field.
+- [x] **`lib/audits/issue-opener.ts`** — GitHub REST issue opener;
+      search-first dedupe under `cron-audit,<auditId>` labels;
+      log-only without `GITHUB_TOKEN`. Wired into A-002 + A-011 cron
+      handlers.
 - [x] **`lib/csrf.ts` + `lib/rate-limit.ts`** — CSRF (no
       content-type exemption, staircase via `CSRF_MODE`) + in-memory
       rate-limit (rightmost XFF, staircase via `RATE_LIMIT_MODE`)

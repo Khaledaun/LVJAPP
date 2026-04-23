@@ -56,7 +56,19 @@ function bodyFor(a: Article): string {
 
 export async function GET(req: Request) {
   return runCron(req, async ({ correlationId, path }) => {
-    const result = runAuditKbStaleness()
+    // `?now=YYYY-MM-DD` lets staff replay a past-dated audit for
+    // testing the issue-opener output without waiting for the
+    // weekly schedule. Vercel cron never sets it.
+    const url = new URL(req.url)
+    const nowParam = url.searchParams.get('now')
+    const now = nowParam ? new Date(nowParam) : undefined
+    if (nowParam && (!now || Number.isNaN(now.getTime()))) {
+      return NextResponse.json(
+        { ok: false, error: 'invalid_now', detail: `?now=${nowParam} is not a parseable date` },
+        { status: 400 },
+      )
+    }
+    const result = runAuditKbStaleness({ now })
 
     // Open issues for every non-FRESH, non-LEGACY article. LEGACY is
     // informational (pre-v0.1 frontmatter); pinging an owner every
