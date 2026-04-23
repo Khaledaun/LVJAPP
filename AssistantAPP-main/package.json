@@ -18,6 +18,8 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
+    "test:e2e:visual": "RUN_VISUAL_REGRESSION=1 playwright test --project=visual-regression",
+    "test:e2e:visual:update": "RUN_VISUAL_REGRESSION=1 playwright test --project=visual-regression --update-snapshots",
     "test:all": "npm run test && npm run test:e2e",
     "test:report": "npm run test:all && node -e \"require('./test-utils/TestReporter.js').testReporter.saveReport()\"",
     "playwright:install": "playwright install",

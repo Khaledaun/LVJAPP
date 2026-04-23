@@ -35,31 +35,54 @@ export default defineConfig({
     video: 'retain-on-failure',
   },
 
-  /* Configure projects for major browsers */
+  /* Configure projects for major browsers.
+   *
+   * Visual regression (Sprint 0.7, §10.4 exit) runs on chromium only
+   * — cross-browser screenshot diffs produce too much antialiasing
+   * noise to be a useful gate. The other projects explicitly ignore
+   * the visual-regression spec. */
   projects: [
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+      testIgnore: /visual-regression\.spec\.ts$/,
     },
 
     {
       name: 'firefox',
       use: { ...devices['Desktop Firefox'] },
+      testIgnore: /visual-regression\.spec\.ts$/,
     },
 
     {
       name: 'webkit',
       use: { ...devices['Desktop Safari'] },
+      testIgnore: /visual-regression\.spec\.ts$/,
     },
 
     /* Test against mobile viewports. */
     {
       name: 'Mobile Chrome',
       use: { ...devices['Pixel 5'] },
+      testIgnore: /visual-regression\.spec\.ts$/,
     },
     {
       name: 'Mobile Safari',
       use: { ...devices['iPhone 12'] },
+      testIgnore: /visual-regression\.spec\.ts$/,
+    },
+
+    /* Visual regression — single-browser, deterministic viewport.
+     * Screenshots live under
+     *   e2e-tests/visual-regression.spec.ts-snapshots/<name>-<browser>-<platform>.png
+     * Baselines are CI-generated (see spec header). */
+    {
+      name: 'visual-regression',
+      testMatch: /visual-regression\.spec\.ts$/,
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 800 },
+      },
     },
   ],
 

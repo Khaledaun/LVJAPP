@@ -1,6 +1,6 @@
 # LVJ Execution Plan — Master Orchestration Contract
 
-*Version 1.1 — April 2026 · Owner: Khaled Aun (founder) · Maintainer: Claude Code*
+*Version 1.2 — April 2026 · Owner: Khaled Aun (founder) · Maintainer: Claude Code*
 *Companion to `Claude.md` v4.0 · `docs/PRD.md` v0.3 · `docs/AGENT_OS.md` v0.1 · `docs/DECISIONS.md` · `docs/EXECUTION_LOG.md` · `docs/BUGS.md`*
 
 > **Purpose.** This document is the *operational* spine of the build. It
@@ -939,13 +939,21 @@ timeout risks.
 
 - Merged: PR #7 (Sprint 0 foundation), PR #8 (Phase 0 audit), PR #9
   (Claude.md v4.0 rebaseline), PR #10 (execution-plan framework),
-  PR #12 (Sprint 0.5 — multi-tenancy foundation per D-023).
-- On branch `claude/cross-repo-review-sprint-05-MT58G`
-  (2026-04-23 session): cross-repo review of `yalla-london` +
-  `KhaledAun.com`, D-024, Sprint 0.5.1 runAuthed migration, A-003
-  flipped to blocking in the `gates` job.
-- Next sprint in D-019 order: **Sprint 0.7 — AR + RTL** (Playwright
-  EN + AR visual regression per §10.4 exit criteria).
+  PR #12 (Sprint 0.5 — multi-tenancy foundation per D-023), PR #13
+  (Sprint 0.5.1 — runAuthed migration + A-003 blocking + D-024 +
+  pass-1 cross-repo review).
+- Open: PR #14 (cross-repo review pass 2 against the KhaledAunSite
+  digest + D-025).
+- On branch `claude/sprint-0.7-playwright-baseline-7fKjM`
+  (2026-04-23 session): Sprint 0.7 Playwright EN + AR visual
+  regression **infra** — spec, config, npm scripts. Baselines are
+  generated on CI in a follow-up (see §10.4 exit status below),
+  because baseline PNGs are platform-specific and cannot be
+  authored outside the runner that runs the comparison.
+- Next sprint in D-019 order after baselines land: **Sprint 8.5**
+  (self-serve onboarding + Stripe Connect Express). Issue #11 safe
+  half (zod v4 `z.record`, test-utils Session shape, jest-mock
+  `any → never`) lands in parallel on its own branch.
 
 ### 10.2 Sprint 0.1 — close 11 unauthed routes
 
@@ -1040,8 +1048,38 @@ timeout risks.
   3. `lib/i18n-rtl.ts` helpers.
   4. Locale cookie flow across Webflow ↔ app ↔ portal.
   5. Playwright smoke S-010 (EN + AR render, RTL applied).
+  6. Playwright visual regression spec
+     (`e2e-tests/visual-regression.spec.ts`) with EN + AR
+     screenshots of `/` and `/signin`. Single-browser (chromium),
+     deterministic page setup (frozen clock, reduced-motion,
+     web-font-ready wait, animations-disabled), gated behind
+     `RUN_VISUAL_REGRESSION=1` until baselines land.
 - **Smoke battery.** S-001, S-002, S-010 required green.
 - **Exit criteria.** Visual regression baseline recorded for EN + AR.
+- **Exit status (2026-04-23).** Items 1–5 landed in commit
+  `564cd58` (Sprint 0.7 base). Item 6 infra landed in the Sprint
+  0.7-baseline PR (spec + config + `test:e2e:visual` scripts).
+  **Baselines are still pending.** Playwright screenshot baselines
+  are platform-specific (font antialiasing differs between
+  macOS / ubuntu-latest / Alpine containers), so they must be
+  generated in the same environment that runs the comparison. The
+  intended close-out flow is a two-step:
+  1. Trigger `npx playwright test visual-regression --update-
+     snapshots` in a `workflow_dispatch` or a scheduled CI run
+     (there is no `workflow_dispatch` wiring in this PR — a
+     maintainer runs it via `act` locally against the CI Docker
+     image, or via the legacy-checks job with
+     `RUN_VISUAL_REGRESSION=1` env, and `git commit`s the
+     resulting PNGs under
+     `e2e-tests/visual-regression.spec.ts-snapshots/`).
+  2. In a trivial follow-up PR (< 50 LOC), drop the `test.skip`
+     gate in the spec, move the spec into the `smoke` npm script
+     (or a new `smoke:visual`), and add it to the `legacy-checks`
+     job in `.github/workflows/ci.yml`. At that point Sprint 0.7
+     closes formally.
+
+  Until step 2 lands, `RUN_VISUAL_REGRESSION=1 npm run
+  test:e2e:visual` is the manual gate; CI ignores the spec.
 
 ### 10.5 Sprint 8.5 — self-serve onboarding (incl. Stripe Connect Express)
 
@@ -1240,7 +1278,7 @@ direction.
 
 ---
 
-*LVJ AssistantApp — EXECUTION_PLAN.md — v1.1 — April 2026*
+*LVJ AssistantApp — EXECUTION_PLAN.md — v1.2 — April 2026*
 *Process changes edit this file.
  Architecture changes edit `Claude.md`.
  Scope changes edit `docs/PRD.md`.
