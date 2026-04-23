@@ -481,6 +481,73 @@
 
 ---
 
+## D-024 · Supabase RLS uses USING + WITH CHECK; tenant id via `app.current_tenant()` set by `SET LOCAL`
+
+- **Date.** 2026-04-23
+- **Status.** accepted
+- **Context.** Per D-023 the app layer is the primary tenant gate and
+  Supabase RLS is defense-in-depth. Before the RLS layer lands we
+  need the policy pattern nailed down so migrations don't have to be
+  re-written later. Cross-repo review of `khaledaun/KhaledAun.com`
+  surfaced a concrete anti-pattern in its `rls-policies.sql`: every
+  policy uses only `USING`, with no `WITH CHECK`. That permits a
+  caller to `UPDATE` a row *into* a value that escapes the policy's
+  own filter, silently de-scoping data.
+- **Decision.** For every RLS-enabled table in LVJ:
+  1. `SELECT` / `DELETE` policies use `USING (tenant_id =
+     app.current_tenant())`.
+  2. `INSERT` / `UPDATE` policies use **both** `USING (tenant_id =
+     app.current_tenant())` (filters target rows for UPDATE) **and**
+     `WITH CHECK (tenant_id = app.current_tenant())` (rejects writes
+     that would produce a cross-tenant row).
+  3. `FOR ALL` policies (e.g. platform-admin bypass) also carry both
+     clauses explicitly — never rely on the USING/WITH-CHECK default
+     coupling.
+  4. Tenant id propagates into Postgres via a stable function
+     `app.current_tenant()` that reads a GUC set per request with
+     `SET LOCAL app.tenant_id = '<id>'`. The app layer sets the GUC
+     inside the same transaction as the query; connection-pool reuse
+     is safe because `SET LOCAL` is transaction-scoped.
+  5. The GUC is set from `TenantContext.tenantId` in `lib/tenants.ts`
+     (same value the Prisma client extension already uses). A helper
+     in `lib/db.ts` (added when Supabase connects) wraps every
+     transaction in `SET LOCAL` before the first query.
+- **Why not `auth.uid()` + JWT claims?** KhaledAun.com's pattern
+  (`auth.jwt() ->> 'role'` with COALESCE across three JWT locations)
+  works for role gating but does not map cleanly onto tenancy —
+  NextAuth sessions don't round-trip to Supabase's `auth.jwt()`
+  without adopting Supabase Auth end-to-end, which is a separate
+  decision pending (see `SESSION_NOTES.md` open architectural
+  questions). `SET LOCAL` works today from any Postgres client
+  (Prisma, raw SQL, background jobs) and is agnostic to the session
+  provider.
+- **Consequences.**
+  - The policy file (lands with first `supabase db push`) carries
+    one `CREATE POLICY` per operation per table, not a single
+    combined `FOR ALL` — so USING vs WITH CHECK stays explicit.
+  - `app.current_tenant()` is `STABLE` and marked `SECURITY DEFINER`
+    so the planner can use it in policy WHERE clauses without a
+    per-row recompute.
+  - `runPlatformOp` (D-023) sets a second GUC `app.platform_op = 1`
+    that the policies honor via `OR`. Cross-tenant reads by LVJ_*
+    staff remain possible, and every access still writes an
+    `AuditLog` row because the app-layer guard runs first.
+  - A future CI job `rls-audit` (scheduled with the first `supabase
+    db push`) fails if a new policy is missing `WITH CHECK` on an
+    `INSERT` / `UPDATE`.
+- **Status of implementation.** Deferred until Supabase connects
+  (EXECUTION_PLAN §12.2). This decision only binds the *pattern*, so
+  the migration author doesn't re-discover the anti-pattern.
+- **Follow-ups.**
+  - Land `packages/db/sql/rls-policies.sql` (or equivalent location)
+    on first Supabase connect.
+  - Add `scripts/audit-rls.ts` to enforce USING + WITH CHECK on every
+    writable policy.
+  - Revisit if / when we migrate to Supabase Auth end-to-end (open
+    question in `SESSION_NOTES.md`).
+
+---
+
 ## How to add a decision
 
 1. Grab the next `D-NNN` number.

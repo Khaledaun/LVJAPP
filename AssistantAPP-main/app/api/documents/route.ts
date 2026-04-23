@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import type { DocumentData } from '@/module2-gemini/types'
 import { getPrisma } from '@/lib/db'
-import { guardCaseAccess } from '@/lib/rbac-http'
+import { runAuthed } from '@/lib/rbac-http'
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const revalidate = 0;
@@ -14,12 +14,11 @@ export const fetchCache = 'force-no-store';
 export async function GET(req: NextRequest) {
   const caseId = req.nextUrl.searchParams.get('caseId')
   if (!caseId) return Response.json({ error: 'caseId required' }, { status: 400 })
-  const g = await guardCaseAccess(caseId)
-  if (!g.ok) return g.response
-  const prisma = await getPrisma();
-  // Delegate to your existing backend (e.g., Firestore/Prisma). Placeholder: call internal service.
-  // Implementer: replace with your data calls.
-  return Response.json({ documents: [], categories: {} })
+  return runAuthed({ caseId }, async () => {
+    await getPrisma();
+    // Implementer: replace with your data calls.
+    return Response.json({ documents: [], categories: {} })
+  })
 }
 
 export async function POST(req: NextRequest) {
@@ -29,20 +28,18 @@ export async function POST(req: NextRequest) {
     const { caseId, documentTypeId, fileName, mimeType, base64Content, uploadedBy } = body as DocumentData & { caseId: string }
     if (!caseId || !documentTypeId || !fileName || !mimeType || !base64Content || !uploadedBy)
       return Response.json({ error: 'Missing fields' }, { status: 400 })
-    const g = await guardCaseAccess(caseId)
-    if (!g.ok) return g.response
-    const prisma = await getPrisma();
-    // Implementer: store file and create record. Return IDs.
-    return Response.json({ documentId: 'doc_placeholder', driveFileId: undefined })
+    return runAuthed({ caseId }, async () => {
+      await getPrisma();
+      return Response.json({ documentId: 'doc_placeholder', driveFileId: undefined })
+    })
   }
   if (action === 'review') {
     const { caseId, documentId, status, reviewerId, rejectionReason } = body
     if (!caseId || !documentId || !status || !reviewerId) return Response.json({ error: 'Missing fields' }, { status: 400 })
-    const g = await guardCaseAccess(caseId)
-    if (!g.ok) return g.response
-    const prisma = await getPrisma();
-    // Implementer: update record
-    return Response.json({ updated: true })
+    return runAuthed({ caseId }, async () => {
+      await getPrisma();
+      return Response.json({ updated: true })
+    })
   }
   return Response.json({ error: 'Unsupported action' }, { status: 400 })
 }

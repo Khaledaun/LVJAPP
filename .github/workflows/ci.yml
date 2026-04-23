@@ -3,7 +3,8 @@
 # Two jobs:
 #
 #   1. gates (REQUIRED) — the per-PR audit gate from docs/EXECUTION_PLAN.md §2.4.
-#      Enforces the invariants this PR introduces: auth-on-every-route,
+#      Enforces the invariants this PR introduces: auth-on-every-route (A-002),
+#      tenant-isolation (A-003, D-023 — blocking since Sprint 0.5.1),
 #      jurisdiction sweep, doc discipline, prisma additive-only. Must be green
 #      to merge.
 #
@@ -11,8 +12,8 @@
 #      continue-on-error because `origin/main` carries ~41 pre-existing TS
 #      errors (recharts/React type drift, Prisma enum re-exports,
 #      lib/agents/invoke.ts generics, test-utils Session shape). Fixing those
-#      is tracked separately; until then we publish the output as annotations
-#      rather than block unrelated PRs on it.
+#      is tracked separately (Issue #11 safe-half); until then we publish the
+#      output as annotations rather than block unrelated PRs on it.
 #
 # When the legacy-cleanup PR lands, flip continue-on-error off and fold these
 # back into the required gate.
@@ -72,9 +73,8 @@ jobs:
         run: cd AssistantAPP-main && npm run audit:prisma -- --base origin/main --head HEAD
         if: github.event_name == 'pull_request'
 
-      - name: A-003 · tenant-isolation audit (informational, flips blocking in Sprint 0.5.1)
+      - name: A-003 · tenant-isolation audit (blocking since Sprint 0.5.1)
         run: npm run audit:tenant
-        continue-on-error: true
 
   legacy-checks:
     name: legacy-checks · tsc/lint/test/build/smoke (informational)

@@ -1,6 +1,6 @@
 # LVJ Execution Plan — Master Orchestration Contract
 
-*Version 1.0 — April 2026 · Owner: Khaled Aun (founder) · Maintainer: Claude Code*
+*Version 1.1 — April 2026 · Owner: Khaled Aun (founder) · Maintainer: Claude Code*
 *Companion to `Claude.md` v4.0 · `docs/PRD.md` v0.3 · `docs/AGENT_OS.md` v0.1 · `docs/DECISIONS.md` · `docs/EXECUTION_LOG.md` · `docs/BUGS.md`*
 
 > **Purpose.** This document is the *operational* spine of the build. It
@@ -938,11 +938,14 @@ timeout risks.
 ### 10.1 Current position (as of this file's creation)
 
 - Merged: PR #7 (Sprint 0 foundation), PR #8 (Phase 0 audit), PR #9
-  (Claude.md v4.0 rebaseline).
-- On this branch (`claude/execution-plan-framework-Ls8tj`): this
-  plan + `BUGS.md` scaffold + `D-022`.
-- Next sprint in D-019 order: **Sprint 0.1 — close 11 unauthed
-  routes**.
+  (Claude.md v4.0 rebaseline), PR #10 (execution-plan framework),
+  PR #12 (Sprint 0.5 — multi-tenancy foundation per D-023).
+- On branch `claude/cross-repo-review-sprint-05-MT58G`
+  (2026-04-23 session): cross-repo review of `yalla-london` +
+  `KhaledAun.com`, D-024, Sprint 0.5.1 runAuthed migration, A-003
+  flipped to blocking in the `gates` job.
+- Next sprint in D-019 order: **Sprint 0.7 — AR + RTL** (Playwright
+  EN + AR visual regression per §10.4 exit criteria).
 
 ### 10.2 Sprint 0.1 — close 11 unauthed routes
 
@@ -988,6 +991,42 @@ timeout risks.
 - **Timeout risks.** Full Prisma regen after schema changes — run
   in background.
 
+### 10.3.1 Sprint 0.5.1 — runAuthed migration + A-003 blocking flip
+
+- **Goal.** Every `app/api/*` route that touches Prisma enters a
+  tenant context through `runAuthed(guard, handler)`. A-003 promotes
+  from informational (`continue-on-error: true`) to blocking in the
+  `gates` job of `.github/workflows/ci.yml`.
+- **Entry criteria.** Sprint 0.5 merged (lands the `runAuthed`
+  helper + Prisma client extension + A-003 audit script).
+- **Deliverables.**
+  1. Migration of the 24 routes reported by `scripts/audit-tenant.ts`
+     to `runAuthed(...)`. Public routes (health, signup, NextAuth
+     callback, terms/latest, webflow webhook) stay on the A-002
+     `INTENTIONAL_PUBLIC_ROUTES` allow-list.
+  2. `.github/workflows/ci.yml` — A-003 moved out of
+     `continue-on-error` and into the required `gates` block.
+  3. `EXECUTION_LOG.md` entry. This recipe marked landed.
+- **Cribs from the 2026-04-23 cross-repo review** (`yalla-london`,
+  `KhaledAun.com` — recorded in `SESSION_NOTES.md`):
+  - Every financial model (`Payment`, `Commission`,
+    `MarketingLead`) must carry `tenantId` at creation time — never
+    inferred at read time (yalla-london CJ-001 precedent).
+  - `OR: [{ tenantId }, { tenantId: null }]` backward-compat pattern
+    during migration windows (yalla-london Rule 64).
+  - Revenue / commission queries scope explicitly on `tenantId`
+    (Rule 74).
+  - `Promise.all` over 15+ Prisma queries exhausts Supabase
+    PgBouncer — use sequential iteration for cross-tenant cockpits
+    (Rule 9). Applies to `analytics-rollup`.
+  - Additive migrations use `ALTER TABLE ADD COLUMN IF NOT EXISTS`,
+    not `CREATE TABLE IF NOT EXISTS` (Rule 47).
+  - `{ not: "" }` not `{ not: null }` on non-nullable `String`
+    columns (Rule 3).
+- **Smoke battery.** S-001, S-002, S-003, S-004 required green.
+- **Exit criteria.** A-003 runs as blocking in `gates`; 0 violations
+  from `scripts/audit-tenant.ts`.
+
 ### 10.4 Sprint 0.7 — AR + RTL
 
 - **Goal.** Every landed screen renders correctly under `dir="rtl"`;
@@ -1024,6 +1063,11 @@ timeout risks.
 - **Exit criteria.** Provider B can onboard end-to-end against Stripe
   test mode without manual intervention; verification gate blocks
   LVJ-routed leads until approved.
+- **Note (2026-04-23 cross-repo review).** Neither `yalla-london`
+  nor `KhaledAun.com` carries Stripe Connect — there is no sibling
+  precedent to crib. `account_links` onboarding, `return_url`
+  signing, and webhook-rotation patterns come from Stripe docs +
+  test mode, not from an internal repo.
 
 ### 10.6 Parallel track — Webflow webhook → MarketingLead
 
@@ -1044,6 +1088,11 @@ Hard pre-req: consent model on `Case.clientConsent` shipped (C-015).
 Per `docs/DECISIONS.md` D-016. Exit criterion: monthly
 `commission-settle` cron runs against test mode without error; free-
 tier expiry sweep (D-009) opens onboarding nudges 30 days prior.
+
+Cribs from yalla-london's CJ-001 bug (see `SESSION_NOTES.md`
+2026-04-23 cross-repo review): every commission / payout row MUST
+carry `tenantId` at creation — never inferred at read time. Revenue
+views must filter `tenantId` explicitly (Rule 74 equivalent).
 
 ### 10.9 Sprint 10 + 10.5 — Service Provider Pool + Public Directory
 
@@ -1191,7 +1240,7 @@ direction.
 
 ---
 
-*LVJ AssistantApp — EXECUTION_PLAN.md — v1.0 — April 2026*
+*LVJ AssistantApp — EXECUTION_PLAN.md — v1.1 — April 2026*
 *Process changes edit this file.
  Architecture changes edit `Claude.md`.
  Scope changes edit `docs/PRD.md`.

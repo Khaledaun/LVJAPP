@@ -899,13 +899,108 @@ as Sprint 0.5.1.
 
 ---
 
+## 2026-04-23 · Sprint 0.5.1 — cross-repo review + runAuthed migration + A-003 blocking
+
+Branch: `claude/cross-repo-review-sprint-05-MT58G`.
+
+**Docs.**
+
+- `docs/SESSION_NOTES.md` — new dated section "Cross-repo review
+  (yalla-london + KhaledAun.com)". Scope note: `khaledaunsite` is
+  private and outside this session's MCP allowlist; fallback scope
+  used the public sibling `KhaledAun.com`. Key findings: yalla-london
+  uses app-layer `siteId` scoping without RLS (validates D-023);
+  KhaledAun.com uses role-based RLS via `auth.jwt() ->> 'role'` but
+  with a USING-only anti-pattern (no `WITH CHECK`) — driver for D-024.
+  Cribs: CJ-001 financial-leak pattern, Rule 64 backcompat
+  `OR: [{ siteId }, { siteId: null }]`, Rule 74 explicit revenue
+  scoping, Rule 9 sequential-iteration against PgBouncer, Rule 47
+  `ALTER TABLE ADD COLUMN IF NOT EXISTS`. Stripe Connect not present
+  in either repo.
+- `docs/DECISIONS.md` · **D-024** — Supabase RLS policies use both
+  `USING` and `WITH CHECK` on every INSERT/UPDATE; tenant id
+  propagates via `app.current_tenant()` set by `SET LOCAL` in the
+  same transaction as the query. Deferred until Supabase connects;
+  binds the pattern so the migration author doesn't re-discover the
+  anti-pattern.
+- `docs/EXECUTION_PLAN.md` §10 — adds **Sprint 0.5.1** recipe
+  (§10.3.1) with the yalla-london cribs; adds a note under §10.5
+  Sprint 8.5 and §10.8 Sprint 15 that neither sibling repo carries
+  Stripe Connect (so there is no internal precedent for
+  `account_links` / webhook rotation / `PlatformAccount`). §10.1
+  current-position updated: PR #12 Sprint 0.5 merged; this branch is
+  Sprint 0.5.1.
+
+**Code — Sprint 0.5.1 runAuthed migration.**
+
+- `lib/rbac.ts` — new `assertAuthed()` helper: authenticated, any
+  role. Used by self-serve endpoints that a tenant user or client can
+  both hit.
+- `lib/rbac-http.ts` — new `guardAuthed()` / extended `AuthedGuard`
+  (`'authed'` case) / `runAuthed('authed', ...)` composition.
+- **24 routes migrated** to `runAuthed(...)` (listed in A-003 pre-
+  migration output):
+  `app/api/audit/route.ts`, `app/api/auth/bootstrap/route.ts`,
+  `app/api/cases/[id]/documents/complete/route.ts`,
+  `app/api/cases/[id]/documents/route.ts`,
+  `app/api/cases/[id]/external-partners/route.ts`,
+  `app/api/cases/[id]/messages/route.ts`,
+  `app/api/cases/[id]/meta/route.ts`,
+  `app/api/cases/[id]/payments/route.ts`,
+  `app/api/cases/[id]/route.ts`,
+  `app/api/cases/[id]/status/route.ts`,
+  `app/api/cases/route.ts`, `app/api/documents/route.ts`,
+  `app/api/journey/route.ts`, `app/api/messages/route.ts`,
+  `app/api/partner-roles/route.ts`, `app/api/payments/route.ts`,
+  `app/api/payments/simple/route.ts`, `app/api/reports/route.ts`,
+  `app/api/service-types/[id]/route.ts`,
+  `app/api/service-types/route.ts`, `app/api/staff/route.ts`,
+  `app/api/terms/accept/route.ts`, `app/api/terms/status/route.ts`.
+  `app/api/terms/content/route.ts` loses its unused `getPrisma`
+  import (route only serves static `TERMS_CONTENT`).
+- ServiceType writes (`POST` / `PUT` / `DELETE`) go through
+  `runPlatformOp(user, 'serviceType.*', ...)` — platform-level writes
+  on a tenant-scoped model are explicitly audited per D-023.
+- `scripts/audit-tenant.ts` — recognises `runAuthed(` as a tenant
+  helper (it composes `withTenantContext` internally).
+- `scripts/audit-auth.ts` — recognises `runAuthed(` / `guardAuthed(`
+  / `assertAuthed(` as auth helpers.
+
+**CI.**
+
+- `.github/workflows/ci.yml` — A-003 moves out of
+  `continue-on-error: true` into the required `gates` block. The
+  header comment is updated to reflect the blocking status and to
+  point Issue #11's legacy-cleanup at the `legacy-checks` group.
+
+**Results.**
+
+- A-002 (auth on every route): 26 GUARDED, 5 INTENTIONAL_PUBLIC,
+  0 STUB, **0 UNAUTHED**.
+- A-003 (tenant isolation): 21 schema models ↔ 16 + 5 allow-list
+  agree; **0 route violations** out of 31 scanned.
+
+**Exit criteria met.** A-003 blocks in the `gates` job.
+
+**Deferred to next sessions.**
+
+- Sprint 0.7 — Playwright EN + AR visual regression baseline. Does
+  not fit in this PR scope (branch `claude/sprint-0.7-*` when it
+  lands).
+- Issue #11 safe half (zod v4 `z.record`, test-utils Session shape,
+  jest-mock `any → never`). Separate PR.
+- Sprint 8.5 onboarding wizard scaffold. Cross-repo review surfaced
+  no blocking dependency that would front-load it; priority order
+  holds.
+
+---
+
 ## Rolling open items
 
 Copied from the commits above; delete lines here as they land.
 
 - [ ] Run `npx prisma migrate dev --name sprint0-foundation && npx prisma migrate dev --name aos-phase1 && npx prisma migrate dev --name add-tenancy` once a dev DB is reachable. Until then, Prisma client types will not reflect the new models and tests that touch DB are skipped via `SKIP_DB=1`.
-- [ ] Sprint 0.5.1 — migrate the 24 pre-existing API routes off the two-step `guard* + inline prisma` pattern onto `runAuthed(...)`. Mechanical; the A-003 audit in `legacy-checks` turns red on every unmigrated route. When all 24 are green, flip A-003 from `continue-on-error: true` to blocking and fold it into the `gates` job.
-- [ ] Cross-reference the `yalla-london` and `khaledaunsite` repos for (a) Supabase RLS policy patterns once we wire RLS in Phase B, (b) multi-tenant Stripe Connect flows that may inform Sprint 8.5 / 15. See `SESSION_NOTES.md` for the specific cues.
+- [ ] `khaledaun/khaledaunsite` — private and outside this session's MCP allowlist, so the cross-repo review landed on `yalla-london` + public `KhaledAun.com` only. A second-pass review of `khaledaunsite` should run when MCP scope refreshes or the repo is read-shareable, to confirm D-024 holds against its RLS policy file (if any).
 - [ ] Bootstrap the Orchestrator from a server entry point: `import '@/lib/agents/register'; subscribeAgent('intake'); subscribeAgent('drafting'); subscribeAgent('email');` — ideally from a `/api/agents/bootstrap` stub that runs on cold start, gated by feature flags.
 - [ ] Flesh out the KB v0.1 articles (`core/disclaimers/upl.md`, `core/disclaimers/outcome.md`, `core/tone/*.md`, `core/escalation/matrix.md`, `core/privacy/consent.md`, `core/privacy/retention.md`, `core/languages.md`).
 - [ ] Execute the jest suite in an environment with `node_modules` installed — none of the tests have been executed in this sandbox.

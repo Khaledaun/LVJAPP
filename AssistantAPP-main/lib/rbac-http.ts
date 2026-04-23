@@ -1,6 +1,7 @@
 import 'server-only'
 import { NextResponse } from 'next/server'
 import {
+  assertAuthed as _assertAuthed,
   assertCaseAccess as _assertCaseAccess,
   assertOrgAccess as _assertOrgAccess,
   assertStaff as _assertStaff,
@@ -60,6 +61,15 @@ export async function guardStaff(): Promise<GuardResult> {
   }
 }
 
+export async function guardAuthed(): Promise<GuardResult> {
+  try {
+    const r = await _assertAuthed()
+    return { ok: true, user: r.user }
+  } catch (err) {
+    return { ok: false, response: toErrorResponse(err) }
+  }
+}
+
 // ─────────────────────────────────────────────────────────────
 // Sprint 0.5 · D-023 — `runAuthed` composes guard + tenant scope.
 //
@@ -80,6 +90,7 @@ export async function guardStaff(): Promise<GuardResult> {
 
 export type AuthedGuard =
   | 'staff'
+  | 'authed'
   | { caseId: string }
   | { orgId: string }
 
@@ -89,6 +100,7 @@ export async function runAuthed(
 ): Promise<Response> {
   const g: GuardResult =
     kind === 'staff'           ? await guardStaff()
+    : kind === 'authed'        ? await guardAuthed()
     : 'caseId' in kind         ? await guardCaseAccess(kind.caseId)
     : await guardOrgAccess(kind.orgId)
 

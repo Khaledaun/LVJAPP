@@ -1,4 +1,5 @@
 import { getPrisma } from '@/lib/db'
+import { runAuthed } from '@/lib/rbac-http'
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const revalidate = 0;
@@ -6,23 +7,16 @@ export const fetchCache = 'force-no-store';
 
 
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { getAuthOptions } from "@/lib/auth";
 import { getUserTermsStatus } from "@/lib/terms";
 
 
 export async function POST(request: NextRequest) {
-  const prisma = await getPrisma();
-  try {
-    const session = await getServerSession(await getAuthOptions());
-    
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+  return runAuthed('authed', async (sessionUser) => {
+    const prisma = await getPrisma();
+    try {
     // Get user details
     const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: sessionUser.id },
       select: {
         id: true,
         email: true,
@@ -80,11 +74,12 @@ export async function POST(request: NextRequest) {
       sessionId
     });
 
-  } catch (error) {
-    console.error("Bootstrap error:", error);
-    return NextResponse.json(
-      { error: "Failed to bootstrap session" },
-      { status: 500 }
-    );
-  }
+    } catch (error) {
+      console.error("Bootstrap error:", error);
+      return NextResponse.json(
+        { error: "Failed to bootstrap session" },
+        { status: 500 }
+      );
+    }
+  });
 }
