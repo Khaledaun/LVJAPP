@@ -1,0 +1,64 @@
+{
+  "_meta": {
+    "review_status": "draft",
+    "review_required_by": "native_arabic_reviewer",
+    "decision": "D-015",
+    "note": "Best-effort translations. Per D-015 every AR string requires a native Arabic reviewer in the marketing-HITL chain before it is rendered to clients. Until that review lands these strings are visible only behind ?lng=ar in dev / staging."
+  },
+  "app": {
+    "name": "مساعد قضايا LVJ",
+    "description": "إدارة قضايا الهجرة"
+  },
+  "sidebar": {
+    "nav_primary": "التنقل الرئيسي",
+    "section_workspace": "مساحة العمل",
+    "section_insight": "التحليلات",
+    "section_admin": "الإدارة",
+    "dashboard": "لوحة التحكم",
+    "cases": "القضايا",
+    "new_intake": "استقبال جديد",
+    "calendar": "التقويم",
+    "messages": "الرسائل",
+    "notifications": "الإشعارات",
+    "reports": "التقارير",
+    "service_types": "أنواع الخدمات",
+    "team_and_roles": "الفريق والأدوار",
+    "settings": "الإعدادات"
+  },
+  "topbar": {
+    "search_placeholder": "ابحث في القضايا والعملاء والمستندات…",
+    "breadcrumb": "مسار التنقل",
+    "search": "بحث",
+    "notifications": "الإشعارات",
+    "notifications_unread": "الإشعارات (غير مقروءة)",
+    "messages": "الرسائل"
+  },
+  "mobile_tabbar": {
+    "nav_client_portal": "تنقل بوابة العميل",
+    "case": "القضية",
+    "docs": "المستندات",
+    "messages": "الرسائل",
+    "profile": "الحساب"
+  },
+  "status": {
+    "blocked": "محجوب",
+    "rejected": "مرفوض",
+    "denied": "مرفوض",
+    "overdue": "متأخر",
+    "failed": "فشل",
+    "in_progress": "قيد التنفيذ",
+    "pending_review": "بانتظار المراجعة",
+    "awaiting": "بانتظار",
+    "docs_pending": "مستندات معلّقة",
+    "in_review": "قيد المراجعة",
+    "submitted": "تم التقديم",
+    "completed": "مكتمل",
+    "approved": "تمت الموافقة",
+    "active": "نشط",
+    "paid": "مدفوع",
+    "not_started": "لم يبدأ",
+    "draft": "مسودة",
+    "inactive": "غير نشط",
+    "new": "جديد"
+  }
+}

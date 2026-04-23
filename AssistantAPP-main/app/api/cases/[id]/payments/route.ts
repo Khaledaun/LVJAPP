@@ -3,6 +3,7 @@ import { logAudit } from '@/lib/audit'
 import { NextResponse } from 'next/server'
 import { getPrisma } from '@/lib/db'
 import { isDevNoDB, listPaymentsMock, markPaymentPaidMock, createPaymentMock } from '@/lib/dev'
+import { guardCaseAccess } from '@/lib/rbac-http'
 
 // Define payment status constants for development mode
 const PayStatus = { unpaid: 'unpaid', paid: 'paid', void: 'void' } as const;
@@ -12,6 +13,8 @@ export const revalidate = 0
 export const fetchCache = 'force-no-store'
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
+  const g = await guardCaseAccess(params.id)
+  if (!g.ok) return g.response
   if (isDevNoDB) return NextResponse.json({ items: listPaymentsMock(params.id) })
   const prisma = await getPrisma()
   const items = await prisma.payment.findMany({
@@ -22,6 +25,8 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 }
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
+  const g = await guardCaseAccess(params.id)
+  if (!g.ok) return g.response
   const body = await req.json()
 
   // Mock mode

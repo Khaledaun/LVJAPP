@@ -321,6 +321,504 @@ traceability artefact captures the mapping.
 11 unauthed routes) remains the gate per D-019 before tenant
 scaffolding.
 
+### `pending` — Master Execution Plan + Bugs log (documentation-only)
+
+Lands the binding *operational* contract that sits alongside
+`Claude.md` (architecture), `docs/PRD.md` (product), `docs/AGENT_OS.md`
+(agents), `docs/DECISIONS.md` (choices), and this file (history). No
+source code touched.
+
+- **`docs/EXECUTION_PLAN.md`** (new, v1.0, ~70 KB) —
+  twelve sections:
+  §0 reading order + timeout protocol (while writing and while
+  executing; per-call wall clock ≤ 90 s, chunk writes ≤ 8 KB,
+  ≤ 40 tool calls per session checkpoint, no `sleep` loops, paginate
+  big reads);
+  §1 artefact map (who owns what, one question per artefact);
+  §2 audit framework — 10 audits (A-001…A-010) with owners +
+  cadence + blocking behaviour, per-PR gate checklist, cron map;
+  §3 smoke testing — 13 smokes (S-001…S-013) with ≤ 14 min per-PR
+  budget, smoke tenant isolation, sandbox-without-DB fallback;
+  §4 bugs & fixes log — 4-tier severity, entry format, smoke/audit
+  auto-population hook, review cadence, learning-loop handoff;
+  §5 continuous learning — 4 feedback streams → weekly KB queue →
+  three sinks (SKILL.md, golden fixture, D-NNN); prompt versioning
+  rule; 5-level skill maturity ladder; decision capture rule;
+  quarterly contract review;
+  §6 multi-agent Claude Code orchestration — explicit split
+  between AOS in-product agents and Claude Code build subagents;
+  subagent roster with tool + wall-clock budgets; parent/subagent
+  handoff protocol; parallelism caps; per-sprint orchestration
+  recipes (0.1 / 0.5 / 0.7 / 8.5); context-preservation protocol
+  across sessions;
+  §7 logging contract — six logs (`AuditLog`, `AutomationLog`,
+  `NotificationLog`, `VoiceCallLog`, `EXECUTION_LOG.md`, `BUGS.md`),
+  `correlationId` UUIDv7 birth points, what-writes-where matrix,
+  never-log list (PII, prompts, Stripe raw bodies);
+  §8 security & safety — 25 controls (C-001…C-025) mapped to
+  Golden Rules / Architecture Decisions / D-NNN, 10-threat model
+  snapshot, review checkpoints, safety-vs-UX trade-off ledger;
+  §9 operational timeout runbook — symptom→response table, the
+  "one more tool call" trap, partial-response recovery, when to use
+  `run_in_background`, sandbox-without-DB discipline;
+  §10 sprint orchestration runbook — current position, per-sprint
+  recipes for D-019 order (0.1 → 0.5 → 0.7 → 8.5 → Webflow webhook →
+  AOS Phase 2 → Sprint 15 → Sprint 10 + 10.5);
+  §11 Definition of Done for code PR, docs-only PR, new agent, new
+  skill, cron/audit, full sprint;
+  §12 open items — tooling gaps (Sprint 0.1 hard unblocks),
+  infrastructure gaps, organisational gaps, deferred decisions
+  awaiting conversation, fresh next actions.
+
+- **`docs/BUGS.md`** (new) — the bug log. Template, severity table,
+  status lifecycle, PII discipline, correlation-id convention. Seeded
+  with `B-000` meta entry (the log's own existence). Open Sev-1 /
+  Sev-2 section currently empty; operational debt (Postgres absence,
+  `node_modules`, 11 unauthed routes) stays in this file's rolling
+  open items since those are deferred deliverables, not defects.
+
+- **`docs/DECISIONS.md`** — appended `D-022` (Master Execution Plan
+  + Bugs log are first-class artefacts). Binds process conflicts to
+  `EXECUTION_PLAN.md`; architecture to `Claude.md`; product to
+  `PRD.md`; ordering to D-019.
+
+**Deferred.** Auto-population scripts
+(`scripts/smoke/report-failures.ts`, `services/audits/<id>.ts`, the
+full smoke battery, `scripts/audit-auth.ts`, `scripts/audit-tenant.ts`,
+`scripts/audit-jurisdiction.ts`, `.github/workflows/ci.yml`,
+`vercel.json` cron block) land per `EXECUTION_PLAN.md` §12.1 as
+Sprint 0.1 deliverables. `Claude.md` is not bumped in this PR — the
+cross-reference to `EXECUTION_PLAN.md` is carried by §1 of the new
+file itself so the reference is live without a `Claude.md` version
+change.
+
+### `pending` — Sprint 0.1: close 12 unauthed API routes + ship A-002 script + S-003 smoke
+
+First sprint executed under `docs/EXECUTION_PLAN.md` v1.0 (§10.2
+recipe). Closes **B-001** (Sev-1) in `docs/BUGS.md`.
+
+- **`lib/rbac-http.ts`** (new, server-only) — introduces
+  `guardCaseAccess` / `guardOrgAccess` / `guardStaff`. Each wraps its
+  throwing counterpart in `lib/rbac.ts` and returns
+  `{ ok: true, user } | { ok: false, response: Response }` with the
+  response carrying a proper 401 / 403 status. Keeps HTTP-layer
+  wiring out of `lib/rbac.ts` (which stays mixed client/server).
+- **12 route wraps** (Phase 0 said 11; the Explore subagent found
+  `cases/[id]/timeline/` returning hardcoded mock data case-scoped,
+  so it was added):
+  - case-scoped via `params.id`: `cases/[id]/payments`,
+    `cases/[id]/meta`, `cases/[id]/documents/upload-url`,
+    `cases/[id]/timeline` — `guardCaseAccess(params.id)` at the top
+    of every method.
+  - case-scoped via `?caseId=` or `body.caseId`: `journey`,
+    `messages`, `documents`, `payments` — validate `caseId` present
+    (400 if not), then `guardCaseAccess(caseId)`.
+  - audit: `guardCaseAccess` when filtered by case, `guardStaff`
+    otherwise.
+  - staff-only: `staff`, `reports`, `messages` `notify` action.
+  - `signup/route.ts` — public for `role: 'client'` only;
+    role-escalation rejected with 403 unless the caller is an
+    authenticated global admin. Closes a pre-fix privilege-escalation
+    vector.
+- **`scripts/audit-auth.ts`** (A-002) — CI-ready static audit. Walks
+  every `app/api/**/route.ts`, classifies as GUARDED / STUB /
+  INTENTIONAL_PUBLIC / UNAUTHED. `INTENTIONAL_PUBLIC` allowlist:
+  `auth/[...nextauth]`, `auth/bootstrap`, `health`, `terms/content`.
+  Exit code 1 when any UNAUTHED route appears outside the allowlist.
+  Supports `--json` for machine consumption.
+- **`__tests__/lib-rbac-http.test.ts`** — unit coverage for the three
+  guard wrappers (happy path, 401, 403, status defaulting, mocked
+  `lib/rbac` assertions). No Prisma / no next-auth in the test.
+- **`e2e-tests/auth-smoke.spec.ts`** (S-003) — 14 adversarial cases.
+  Each hits the route with no cookies and asserts (a) status ∈
+  {400, 401, 403}, (b) status is not 2xx, not 500, (c) the JSON body
+  does not carry any of the handler's success-path keys (`items`,
+  `messages`, `documents`, `payments`, `stages`, `kpis`, `case`,
+  `user`). Signup's role-escalation attempt expects 403 specifically.
+- **`docs/BUGS.md`** — appended `B-001` with full reproduction, root
+  cause, fix, tenant impact. Status `fixed`.
+
+**Smoke battery status.**
+- S-001 (build + typecheck): **deferred** — sandbox has no
+  `node_modules`. `docs/EXECUTION_PLAN.md` §9.5 discipline applied:
+  PR description lists the deferral rather than claiming green.
+- S-002 (jest): **deferred** — same reason. New unit tests compile
+  against existing Jest config patterns.
+- S-003 (auth smoke): **deferred to CI** — the spec ships; first run
+  is blocked on a live Next dev server + DB. Ready to execute.
+
+**Deferred.**
+- Provision Postgres + `node_modules` in sandbox/CI so S-001..S-003
+  actually run.
+- `scripts/audit-auth.ts` runs via `ts-node` today; wire it to
+  `npm run audit:auth` and to `.github/workflows/ci.yml` (both in
+  §12.1 of EXECUTION_PLAN).
+- Migrate the other `getServerSession` call sites to `guardX` as
+  their owning sprints touch them (not a Sprint 0.1 goal).
+
+### `pending` — Sprint 0.7: AR + RTL into design system + i18n foundation
+
+Per D-019 / D-015. Sprint 0.5 (multi-tenancy) is blocked on Postgres
+provisioning so the next executable item is 0.7. Lays the i18n
+foundation without bringing in next-intl yet (sandbox lacks
+node_modules); JSON layout is next-intl-compatible so the eventual
+swap is mechanical.
+
+- **`messages/en.json`** (new) — keys for the four landed lvj/*
+  components: `sidebar.*` (10 nav labels + 3 section labels),
+  `topbar.*` (search placeholder, breadcrumb, notifications,
+  messages), `mobile_tabbar.*` (4 tab labels + nav aria-label),
+  `status.*` (19 traffic-light statuses).
+- **`messages/ar.json`** (new) — Arabic translations of every EN key.
+  `_meta.review_status: 'draft'` — per D-015 these strings must be
+  reviewed by a native AR reviewer in the marketing-HITL chain
+  before client render. The infrastructure ships now; the review is
+  a Sprint 13 prereq.
+- **`messages/pt.json`** (new, stub) — key-presence stub so the i18n
+  loader doesn't crash when locale is forced. Population waits for
+  Portuguese counsel sign-off (v1.x per D-015).
+- **`lib/i18n.ts`** (new, server-safe) — `Locale` type
+  (`'en' | 'ar' | 'pt'`), `SUPPORTED_LOCALES`, `SHIPPED_LOCALES`
+  (EN + AR only — PT excluded from switcher), `DEFAULT_LOCALE`,
+  `LOCALE_COOKIE = 'lvj_locale'`, `isLocale`, `resolveLocale`
+  (precedence: pathname > cookie > Accept-Language > default), `t`
+  with EN fallback for missing keys.
+- **`lib/i18n-rtl.ts`** (new) — `isRtlLocale`, `getDir`,
+  `getHtmlLangAttr` (BCP-47: `en` / `ar` / `pt-PT`),
+  `getBodyFontVar` / `getDisplayFontVar` (returns the right CSS
+  variable per locale), `formatNumber` with `kind: 'identifier'`
+  escape so case IDs / dates stay Latin per SEF/AIMA convention.
+- **`app/layout.tsx`** — adds `IBM_Plex_Sans_Arabic` next/font import
+  exposed as `--font-lvj-arabic-body`. `Amiri` variable renamed
+  `--font-lvj-arabic` → `--font-lvj-arabic-display` to make the
+  D-015 display/body pairing explicit. `<html>` now reads
+  `lvj_locale` cookie via `cookies()` and emits dynamic `lang` /
+  `dir` / `data-locale` attributes.
+- **`app/globals.css`** — adds `--lvj-arabic-display` /
+  `--lvj-arabic-body` token vars; preserves `--lvj-arabic` as a
+  back-compat alias. New `[dir="rtl"]` selector swaps `--lvj-sans`
+  + `--lvj-serif` to the AR pairing. New
+  `[dir="rtl"] svg[data-rtl-mirror="true"]` rule provides
+  `transform: scaleX(-1)` for icons that opt in.
+- **`components/lvj/icons.tsx`** — `IconArrow` now carries
+  `data-rtl-mirror="true"`; brand icons / language-neutral icons
+  (Plus, etc.) opt out by omitting the attribute.
+- **`middleware.ts`** — wraps `withAuth` in a thin shell that runs
+  `applyLocaleCookie()` after the auth pass. Cookie set on every
+  matched route when the resolved locale differs from the existing
+  cookie value (so we don't `Set-Cookie` on every request). Matcher
+  expanded to include `/ar/:path*`, `/en/:path*`, `/pt/:path*` so
+  the cookie gets set on first hit even before the locale route
+  groups exist. `/api/*` skips the locale rewrite (JSON contract is
+  locale-neutral).
+- **`agents/intake/schema.ts`** + **`agents/drafting/schema.ts`** —
+  `locale` widened from `z.literal('en')` to
+  `z.enum(['en', 'ar', 'pt'])` with `.default('en')`. Per D-015 the
+  intake + drafting agents must accept AR payloads in v1.
+- **`__tests__/lib-i18n.test.ts`** — unit coverage for `isLocale`,
+  `resolveLocale` (path > cookie > accept-language precedence),
+  `t` (AR present, EN fallback, missing-key signal), and the
+  `i18n-rtl` helpers (dir, BCP-47, font vars, identifier vs prose
+  numerals). No DOM, no Next runtime.
+- **`e2e-tests/locale-smoke.spec.ts`** (S-010) — 4 cases: default →
+  EN/LTR; cookie `lvj_locale=ar` → AR/RTL; middleware sets cookie
+  from `/ar/dashboard`; `--font-lvj-arabic-body` and
+  `--font-lvj-arabic-display` resolve to non-empty values on the
+  rendered document.
+
+**Smoke battery status.**
+- S-001 (build + typecheck): **deferred** — same sandbox blocker.
+- S-002 (jest): **deferred**.
+- S-010 (locale smoke): **ships, deferred run** — needs live Next
+  server. Spec ready.
+
+**Deferred.**
+- next-intl install + migration of components/lvj/* to use `t()`
+  hooks (Sprint 0.7-bis or Sprint 1 follow-up). Today the
+  components still render hardcoded EN strings — the foundation is
+  in place but no component has been migrated to consume it. This
+  keeps the sprint scoped to "infrastructure", per
+  `docs/EXECUTION_PLAN.md` §10.4 deliverable list.
+- Native Arabic reviewer sign-off for `messages/ar.json` (D-015 —
+  organisational gap).
+- Locale switcher UI in topbar (small follow-up; the cookie
+  primitive is in place).
+- Per-locale URL routing groups under `app/(locale)/` (a bigger
+  refactor; not in 0.7 scope).
+
+### `pending` — Sprint 0.7-bis: Webflow webhook ingress (D-019 marketing parallel track)
+
+Smallest marketing-automation slice from D-019, executed in parallel
+with 0.7. Establishes HMAC-verified webhook ingress (control C-009)
+so Webflow form submissions can hit the platform now; the actual
+`MarketingLead` row creation defers to Sprint 13 once
+`MarketingLead` lands (Sprint 0.5 prereq for `tenantId` scoping).
+
+- **`lib/webflow.ts`** (new, server-only) —
+  `verifyWebhookSignature({ rawBody, signature, timestamp?, secret? })`:
+  HMAC-SHA256 with timing-safe comparison; supports both Webflow's
+  legacy body-only contract and the timestamp-prefixed variant
+  (`<timestamp>:<rawBody>`); rejects missing secret, missing /
+  malformed signature, length mismatch. Plus `WebflowEventType` /
+  `WebflowFormSubmissionPayload` types and a narrow `asFormSubmission`
+  guard so the route can pattern-match safely.
+- **`app/api/webhooks/webflow/route.ts`** (new) — POST endpoint.
+  Reads body as raw text *before* JSON parse (re-serialisation breaks
+  the HMAC). Tries timestamp-prefixed signature first, then
+  body-only. Bad signature → 401 + `webflow.webhook.rejected_bad_signature`
+  audit. Valid form_submission → 202 + audit row with siteId, formId,
+  and **only the data field key names** (per
+  `docs/EXECUTION_PLAN.md` §7.4 never-log-PII). Unsupported event →
+  202 + `unsupported_event` audit. Malformed JSON with valid
+  signature → 202 + `malformed_json` audit (we still ack to avoid
+  Webflow retries, but the audit signals upstream config drift).
+  Response body never echoes the signed payload (smoke S-009 asserts).
+- **`scripts/audit-auth.ts`** — `webhooks/webflow/route.ts` added to
+  the `INTENTIONAL_PUBLIC` allowlist (its boundary is the HMAC, not a
+  session). Comment notes the allowlist requires a per-route signature
+  smoke before adding any further entries.
+- **`.env.example`** — adds `WEBFLOW_API_TOKEN`, `WEBFLOW_SITE_ID`,
+  `WEBFLOW_WEBHOOK_SECRET` per Claude.md v4.0 §Phase 6.
+- **`__tests__/lib-webflow.test.ts`** — 12 unit assertions covering
+  every reject path (missing secret, missing/empty/non-hex signature,
+  forged secret, body tamper, timestamp mismatch) plus uppercase hex,
+  Buffer body, full happy paths, and `asFormSubmission` guard
+  positive + 5 null cases.
+- **`e2e-tests/webflow-webhook-smoke.spec.ts`** (S-009) — 7 cases:
+  no signature → 401; forged → 401; valid → 202; valid+timestamp →
+  202; unsupported event → 202 + ignored marker; malformed JSON →
+  202 + ignored marker; defence-in-depth assertion that response
+  body never echoes the signed payload (PII).
+
+**Smoke battery status.**
+- S-009 (Webflow webhook): **ships, deferred run** — needs live Next
+  server. Spec ready.
+- S-001/S-002: deferred (sandbox).
+
+**Deferred.**
+- `MarketingLead` Prisma model + write path (Sprint 13; depends on
+  Sprint 0.5 for `tenantId`).
+- Webflow Data API client (`lib/webflow.ts` extension for
+  `publishDraft` / `approvePublish`) — Sprint 13 / Sprint 10.5.
+- `Stripe`, `Kaspo` webhook receivers — Sprint 8.5 / Sprint 5
+  respectively, following the same C-009 pattern.
+
+### `pending` — Tooling: CI workflow, npm scripts, .claude settings
+
+Closes three entries from `docs/EXECUTION_PLAN.md` §12.1 (tooling
+gaps). No source code changes; wires what Sprints 0.1 / 0.7 / 0.7-bis
+shipped so it actually runs in CI and in local dev.
+
+- **`.github/workflows/ci.yml`** (new) — per-PR job
+  `audit-and-test`: checkout, Node 20 + npm cache, `npm ci`,
+  `npm run audit:auth` (A-002), `tsc --noEmit`, `npm run lint`,
+  `npm test`, `npm run build`, Playwright chromium install, `npm run
+  smoke` (runs auth / locale / webflow specs). `SKIP_DB=1` +
+  `SKIP_AUTH=1` per `docs/EXECUTION_PLAN.md` §9.5 sandbox-without-DB
+  discipline; a DB-backed workflow follows Sprint 0.5. Concurrency
+  group cancels in-flight runs on new pushes. 20-min timeout ceiling.
+- **`package.json`** — new scripts: `audit:auth`, `audit:auth:json`,
+  `smoke:auth`, `smoke:locale`, `smoke:webflow`, `smoke`
+  (chained audit + Playwright run).
+- **`.claude/settings.json`** (new, repo-scoped) — permission
+  allowlist for routine read-only Bash ops (git status/diff/log, ls,
+  grep, find, wc, jq, lint, audit:auth, smoke runs) so future
+  sessions don't re-prompt. `ask` list carries anything that writes
+  to git or the filesystem non-reversibly (push, commit, reset,
+  npm install, prisma migrate, rm). `deny` list carries force-push,
+  `rm -rf /`, `curl`, `wget`. Env baseline matches the sandbox
+  (SKIP_DB=1, SKIP_AUTH=1).
+
+No tests / migrations / runtime behaviour changes.
+
+### `pending` — Tooling: A-004 jurisdiction audit + vercel.json cron block
+
+Closes two more entries from `docs/EXECUTION_PLAN.md` §12.1.
+
+- **`scripts/audit-jurisdiction.ts`** (new) — A-004. Walks the repo,
+  pattern-matches the D-006 legacy US-immigration term list (USCIS,
+  RFE, EB5, H1B, N400, N-600, I-9, I-130, IOLTA, DS-160, ABA Model
+  Rule 1.6, ABA Model Rule 5.3) with word-boundary guards. Per-term
+  hit count + per-file listing. Allowlists the doc traceability
+  surfaces (`Claude.md`, `docs/PRD.md`, `docs/DECISIONS.md`,
+  `docs/EXECUTION_LOG.md`, `docs/EXECUTION_PLAN.md`,
+  `docs/AGENT_OS.md`, `docs/prompts/*`, legacy reports). Informational
+  by default (exit 0); `--strict src-only` exits non-zero if any
+  hit appears outside the allowlist. `--json` machine output.
+- **`package.json`** — `audit:jurisdiction` + `audit:jurisdiction:json`
+  scripts.
+- **`vercel.json`** (new) — 11 cron declarations matching
+  `docs/EXECUTION_PLAN.md` §2.5 + Claude.md v4.0 §Project Structure:
+  `audit-auth-weekly` (Sun 03:00), `audit-tenant-nightly` (03:15),
+  `audit-jurisdiction-weekly` (Sun 03:30), `audit-kb-staleness-weekly`
+  (Mon 03:00), `audit-cost-daily` (00:05), `audit-deps-weekly`
+  (Sun 04:00), `audit-doc-discipline-weekly` (Sun 04:30),
+  `deadline-alert` (00:05), `marketing-hitl-escalate` (hourly),
+  `commission-settle` (1st of month 06:00),
+  `analytics-rollup` (00:10). Handlers land per their owning sprint.
+- **`docs/EXECUTION_PLAN.md` §12.1** — three more items ticked.
+
+No runtime behaviour changes; the scripts + cron schedules are
+declaration-only until their handlers exist.
+
+### `pending` — Tooling: A-010 lint-docs + scripts/pii-scrub.ts
+
+Closes two more items from `docs/EXECUTION_PLAN.md` §12.1.
+
+- **`scripts/lint-docs.ts`** (new) — A-010 per D-005. Four rules:
+  (R1) source diff requires `docs/EXECUTION_LOG.md` diff;
+  (R2) long-lived contract doc diff (Claude.md / PRD / AGENT_OS /
+       EXECUTION_PLAN) requires a version header bump;
+  (R3) `docs/EXECUTION_LOG.md` is append-only — pre-existing commit
+       entries cannot be deleted;
+  (R4) `docs/DECISIONS.md` entries are immutable bodies; the only
+       allowed in-place change is a new `superseded-by: D-NNN` marker.
+       Otherwise a new D-NNN must be added.
+  Compares `origin/main..HEAD` by default; configurable via
+  `--base` / `--head`. `--json` for CI consumption.
+- **`scripts/pii-scrub.ts`** (new) — `scrubPii(input)` +
+  `scrubPiiDeep(value)`. Nine patterns: email, international phone,
+  passport-ish (loose), US SSN, Portugal NIF, credit-card-like,
+  IBAN, DOB (YYYY-MM-DD / DD/MM/YYYY), IPv4. Output tokens are
+  `[REDACTED:<kind>]` so logs stay grep-able. CLI wrapper reads
+  stdin and emits summary on stderr.
+- **`__tests__/lib-pii-scrub.test.ts`** — 11 unit assertions
+  covering every pattern, nested object walk, array walk, and
+  empty-input / no-match paths.
+- **`package.json`** — `audit:docs`, `audit:docs:json` scripts.
+- **`.github/workflows/ci.yml`** — adds `A-004 jurisdiction` +
+  `A-010 doc-discipline` steps. A-010 only fires on
+  `pull_request` events (direct-to-main pushes are exempt by
+  necessity — the log entry would have to append to itself).
+- **`docs/EXECUTION_PLAN.md` §12.1** — two more items ticked
+  (lint-docs, pii-scrub). C-019 now references the centralised
+  helper.
+
+Three items remain open in §12.1: `scripts/audit-tenant.ts`
+(Sprint 0.5 blocker), `scripts/audit-prisma.ts` (Sprint 0.5 follow-
+up), and `scripts/smoke/<id>.ts` (lands per sprint).
+
+### `pending` — Core KB v0.1: 10 draft articles (AOS Phase 1 unblock)
+
+Lands the Core KB v0.1 scope listed in `docs/AGENT_OS.md` §6.5 as
+`confidence: draft` scaffolds. Each carries full YAML front-matter
+(owner, jurisdiction, audience, tone, confidence, review TTL) so
+the staleness sweep (A-005) and the `legalKb.retrieve()` filter
+already work against them. Promotion to `reviewed` or
+`authoritative` is blocked on lawyer + native-AR reviewer sign-off
+per D-015.
+
+- **`skills/core/identity.md`** — LVJ-the-Platform vs.
+  LVJ-the-firm; primary / secondary / out-of-scope jurisdictions
+  per D-006; public-facing domains; support hours + pager
+  discipline; banned cross-jurisdiction claims; Portuguese CTA
+  replaces IOLTA.
+- **`skills/core/roles.md`** — 10-row role matrix mirrored from
+  PRD v0.3 §2.2 + disclosure rules per role + agent-invocation vs.
+  target-data split (manifest `invoker` vs. `acts_on_behalf_of`) +
+  common role-mistake catalogue.
+- **`skills/core/case-lifecycle.md`** — 14 canonical case statuses
+  (lead → intake → active → documents_pending → submitted →
+  awaiting_decision → additional_evidence_requested → approved /
+  denied → appeal_pending → completed / archived) with traffic-light
+  mapping, transition rules, banned transitions, jurisdiction-aware
+  labels per D-006 (no RFE; "additional evidence requested" for PT).
+- **`skills/core/escalation/matrix.md`** — D-013 4-tier definitions
+  (Standard / Urgent / Critical / Marketing) + the 10 typed
+  `escalation.*` events (criminal_history, prior_refusal,
+  urgent_deadline, adverse_notice, distressed_client,
+  fraud_indicator, fee_dispute, inconsistent_identity,
+  marketing_content, cross_tenant_data_leak) + routing, pause
+  semantics, channel cadence on SLA miss.
+- **`skills/core/disclaimers/upl.md`** — information-vs-advice
+  triad (`general_information` / `firm_process` /
+  `attorney_approved_advice`); 12 banned outcome-guarantee phrases;
+  UPL risk patterns (cross-jurisdiction conclusions); 3 approved
+  hedging templates; AR mirror requirement per D-015.
+- **`skills/core/disclaimers/outcome.md`** — 6-row banned→approved
+  substitution table, probability-question scripts, explicit
+  handoff script for a client who pushes for a guarantee, scanner
+  contract in `lib/agents/guardrails.ts`.
+- **`skills/core/privacy/consent.md`** — consent contract per
+  channel (email / sms / whatsapp / voice / push / recording);
+  D-014 quiet hours; GDPR lawful-basis table for PT; UAE PDPL
+  posture; scripted consent prompts in EN + AR.
+- **`skills/core/privacy/retention.md`** — 14-class retention
+  window table; legal-hold carve-out; agent contract
+  (no direct deletes; audit on retention.deleted); D-018
+  k-anonymity cross-tenant aggregate exception.
+- **`skills/core/tone/legal-formal.md`** — voice, structure,
+  AR register, banned markers.
+- **`skills/core/tone/empathetic-client.md`** — voice, anti-patterns,
+  4 example openings (EN + AR) including the post-denial handoff
+  that is *never* auto-sent.
+- **`skills/core/tone/internal-ops.md`** — HITL-summary template
+  and deadline-page template; code-style for IDs / dates / paths.
+- **`skills/core/tone/marketing.md`** — SEO/AEO/GEO structured-data
+  contract (Article + FAQPage + dateModified + jurisdiction chip);
+  banned marketing phrasings; AR never auto-publishes (D-010 +
+  D-015).
+- **`skills/core/languages.md`** — shipped-locales matrix
+  (EN ✅ / AR ✅ / PT stub); path>cookie>Accept-Language precedence;
+  Latin identifiers under RTL; AR reviewer chain; name
+  transliteration discipline.
+- **`skills/core/SKILL.md`** — index + maturity note.
+
+Every article's `confidence: draft` flag keeps the
+`legalKb.retrieve({ confidence: 'authoritative' })` filter from
+serving them to client-facing outputs today. The scanner still
+enforces the banned-phrase / UPL / PII rules regardless of
+maturity — this unblocks development while the lawyer review
+proceeds.
+
+### `pending` — Tooling: scripts/audit-prisma.ts (C-004)
+
+Closes the C-004 enforcement gap from `docs/EXECUTION_PLAN.md` §12.1.
+Static schema diff against a base ref; detects every class of
+breaking change to `prisma/schema.prisma` that Golden Rule #4
+forbids.
+
+- **`scripts/audit-prisma.ts`** (new) — parses `prisma/schema.prisma`
+  from base and head refs (default `origin/main..HEAD`), extracts
+  `model.field → { type, optional, array }` signatures, reports
+  violations: `model_removed`, `field_removed`, `type_narrowed`,
+  `required_tightened` (optional→required), `array_lost`. Widenings
+  (required→optional, scalar→array, new model / field / enum value)
+  are silently accepted — the whole point of the additive-only rule.
+  `--json` for CI consumption; exit 1 on violation.
+- **`package.json`** — `audit:prisma` + `audit:prisma:json` scripts.
+- **`.github/workflows/ci.yml`** — adds the audit to the per-PR
+  pipeline right after A-010 (doc discipline). Only enforced on
+  `pull_request` events.
+- **`docs/EXECUTION_PLAN.md` §12.1** — one more item ticked.
+
+Two §12.1 items remain open: `scripts/audit-tenant.ts` (Sprint 0.5
+prerequisite — can be drafted now but has no `tenantId` fields to
+audit until the migration lands) and per-smoke scaffolding under
+`scripts/smoke/` (lands incrementally per sprint).
+
+### `pending` — CI fix: swap ts-node for tsx + fetch full history
+
+CI failure on PR #10 check run `A-002 · unit · smoke`:
+`sh: 1: ts-node: not found`. The audit scripts were invoked via
+`ts-node --compiler-options …` but the repo's existing dev setup
+uses `tsx` (already in `devDependencies`, no `ts-node` installed).
+
+- **`package.json`** — switched all 8 audit scripts
+  (`audit:auth`, `audit:auth:json`, `audit:jurisdiction`,
+  `audit:jurisdiction:json`, `audit:docs`, `audit:docs:json`,
+  `audit:prisma`, `audit:prisma:json`) from
+  `ts-node --compiler-options '{"module":"commonjs"}'` to plain
+  `tsx`. `tsx` doesn't need the compiler-options shim for ESM/CJS
+  interop, so the scripts are slightly simpler.
+- **`.github/workflows/ci.yml`** — `actions/checkout@v4` now runs
+  with `fetch-depth: 0`. A-010 (doc discipline) and C-004 (prisma)
+  both diff against `origin/main`; the default shallow clone would
+  have failed with `fatal: bad revision 'origin/main...HEAD'`.
+
+No source-code changes. Scripts themselves were never touched —
+the failure was purely in the invocation harness.
+
 ---
 
 ## Rolling open items

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getPrisma } from '@/lib/db'
 import { isDevNoDB } from '@/lib/dev'
+import { guardStaff } from '@/lib/rbac-http'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -8,6 +9,8 @@ export const revalidate = 0
 export const fetchCache = 'force-no-store'
 
 export async function GET() {
+  const g = await guardStaff()
+  if (!g.ok) return g.response
   if (isDevNoDB) {
     return NextResponse.json({
       items: [

@@ -35,7 +35,20 @@ list of articles we must land before a workflow agent is allowed to ship.
 - `core/tone/empathetic-client.md`
 - `core/tone/internal-ops.md`
 - `core/tone/marketing.md`
-- `core/languages.md` — v0.1 is EN only.
+- `core/languages.md` — EN + AR ship (D-015); PT v1.x.
+
+## Maturity
+
+All v0.1 articles above have landed as `confidence: draft` (2026-04-22).
+Promotion to `reviewed` or `authoritative` requires:
+1. Portuguese-licensed lawyer sign-off (every article).
+2. Native Arabic reviewer sign-off on any AR template copy (D-015).
+3. DPO sign-off on `core/privacy/*` (Sprint 16 pre-req).
+
+Until then, agents serving client-facing output run in HITL mode
+for every invocation — the scanner in `lib/agents/guardrails.ts`
+still enforces the banned-phrase / UPL / PII rules regardless of
+the maturity level.
 
 ## Binding rules
 

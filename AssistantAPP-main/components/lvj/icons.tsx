@@ -91,7 +91,11 @@ export const IconSearch = (p: Props) => (
 )
 
 export const IconArrow = (p: Props) => (
-  <svg {...base({ width: 11, height: 11, strokeWidth: 1.3, ...p })}>
+  // Sprint 0.7 · D-015 — directional arrows mirror under [dir="rtl"].
+  // The `data-rtl-mirror` attribute is the contract; globals.css does the
+  // transform so a future pass can override per surface without touching
+  // every callsite.
+  <svg data-rtl-mirror="true" {...base({ width: 11, height: 11, strokeWidth: 1.3, ...p })}>
     <path d="M3 8h10M9 4l4 4-4 4" />
   </svg>
 )

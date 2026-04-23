@@ -1,0 +1,58 @@
+{
+  "app": {
+    "name": "LVJ Case Assistant",
+    "description": "Immigration case management"
+  },
+  "sidebar": {
+    "nav_primary": "Primary navigation",
+    "section_workspace": "Workspace",
+    "section_insight": "Insight",
+    "section_admin": "Administration",
+    "dashboard": "Dashboard",
+    "cases": "Cases",
+    "new_intake": "New Intake",
+    "calendar": "Calendar",
+    "messages": "Messages",
+    "notifications": "Notifications",
+    "reports": "Reports",
+    "service_types": "Service Types",
+    "team_and_roles": "Team & Roles",
+    "settings": "Settings"
+  },
+  "topbar": {
+    "search_placeholder": "Search cases, clients, documents…",
+    "breadcrumb": "Breadcrumb",
+    "search": "Search",
+    "notifications": "Notifications",
+    "notifications_unread": "Notifications (unread)",
+    "messages": "Messages"
+  },
+  "mobile_tabbar": {
+    "nav_client_portal": "Client portal navigation",
+    "case": "Case",
+    "docs": "Docs",
+    "messages": "Messages",
+    "profile": "Profile"
+  },
+  "status": {
+    "blocked": "Blocked",
+    "rejected": "Rejected",
+    "denied": "Denied",
+    "overdue": "Overdue",
+    "failed": "Failed",
+    "in_progress": "In Progress",
+    "pending_review": "Pending Review",
+    "awaiting": "Awaiting",
+    "docs_pending": "Docs Pending",
+    "in_review": "In Review",
+    "submitted": "Submitted",
+    "completed": "Completed",
+    "approved": "Approved",
+    "active": "Active",
+    "paid": "Paid",
+    "not_started": "Not Started",
+    "draft": "Draft",
+    "inactive": "Inactive",
+    "new": "New"
+  }
+}

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getPrisma } from '@/lib/db'
 import { isDevNoDB } from '@/lib/dev'
+import { guardCaseAccess } from '@/lib/rbac-http'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -8,6 +9,8 @@ export const revalidate = 0
 export const fetchCache = 'force-no-store'
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+  const g = await guardCaseAccess(params.id)
+  if (!g.ok) return g.response
   const body = await req.json()
 
   if (isDevNoDB) {

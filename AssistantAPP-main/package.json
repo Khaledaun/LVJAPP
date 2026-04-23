@@ -20,7 +20,19 @@
     "test:e2e:headed": "playwright test --headed",
     "test:all": "npm run test && npm run test:e2e",
     "test:report": "npm run test:all && node -e \"require('./test-utils/TestReporter.js').testReporter.saveReport()\"",
-    "playwright:install": "playwright install"
+    "playwright:install": "playwright install",
+    "audit:auth": "tsx scripts/audit-auth.ts",
+    "audit:auth:json": "tsx scripts/audit-auth.ts --json",
+    "audit:jurisdiction": "tsx scripts/audit-jurisdiction.ts",
+    "audit:jurisdiction:json": "tsx scripts/audit-jurisdiction.ts --json",
+    "audit:docs": "tsx scripts/lint-docs.ts",
+    "audit:docs:json": "tsx scripts/lint-docs.ts --json",
+    "audit:prisma": "tsx scripts/audit-prisma.ts",
+    "audit:prisma:json": "tsx scripts/audit-prisma.ts --json",
+    "smoke:auth": "playwright test e2e-tests/auth-smoke.spec.ts",
+    "smoke:locale": "playwright test e2e-tests/locale-smoke.spec.ts",
+    "smoke:webflow": "playwright test e2e-tests/webflow-webhook-smoke.spec.ts",
+    "smoke": "npm run audit:auth && playwright test e2e-tests/auth-smoke.spec.ts e2e-tests/locale-smoke.spec.ts e2e-tests/webflow-webhook-smoke.spec.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",

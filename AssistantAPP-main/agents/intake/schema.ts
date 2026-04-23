@@ -12,7 +12,10 @@ export const IntakeInputSchema = z.object({
       label:  z.string(),
     }))
     .default([]),
-  locale:  z.literal('en').default('en'),
+  // D-015 · D-019 — locale is multi-valued from v1. EN + AR ship; PT is
+  // accepted at the schema boundary so v1.x payloads validate, but the
+  // intake skill currently produces EN/AR only.
+  locale:  z.enum(['en', 'ar', 'pt']).default('en'),
   source:  z.string().optional(),
 })
 export type IntakeInput = z.infer<typeof IntakeInputSchema>

@@ -1,0 +1,8 @@
+{
+  "_meta": {
+    "review_status": "stub",
+    "review_required_by": "portuguese_lawyer_reviewer",
+    "decision": "D-015",
+    "note": "PT is planned for v1.x per D-015. This file exists as a key-presence stub so the i18n loader does not crash when the locale is forced. Population happens with the v1.x sprint, after Portuguese counsel sign-off."
+  }
+}
