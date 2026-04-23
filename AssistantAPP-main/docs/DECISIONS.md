@@ -629,9 +629,17 @@
     wired into `gates` job alongside A-002 / A-003.
   - `scripts/audit-prisma.ts` — add `supabase.from('<PascalCase>')`
     check in the commit that lands the first raw Supabase query.
-  - `scripts/preflight.sh` — follow-up PR post-Sprint-0.7.
+  - ~~`scripts/preflight.sh` — follow-up PR post-Sprint-0.7.~~
+    **Landed** 2026-04-23 in the same post-0.7 cleanup PR. Soft-gated
+    items (tsc/lint/jest/build + Prisma/doc audits that need
+    `origin/main`) stay informational; required items mirror the CI
+    `gates` job. DB reachability checks are stubbed with an explicit
+    `SKIP` line so the gap is visible in preflight output — they
+    flip to required when the Supabase-connect PR adds `DATABASE_URL`
+    + `DIRECT_URL`.
   - `lib/env.ts` — add `DIRECT_URL` to the required-env schema when
-    Supabase connects.
+    Supabase connects. (`CRON_SECRET` already declared as optional
+    in dev / required-in-prod, landed with the `runCron` helper.)
 
 ---
 

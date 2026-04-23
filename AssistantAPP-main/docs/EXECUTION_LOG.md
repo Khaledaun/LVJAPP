@@ -1255,12 +1255,70 @@ opt out of caching leaks data across sessions regardless of what
 
 ---
 
+## 2026-04-23 · Post-0.7 cleanup — `runCron` helper + `scripts/preflight.sh`
+
+Same branch (`claude/post-0.7-a-005-dynamic-audit-X4mBc`). Two
+follow-up items from the post-0.7 deferred list land here; CSRF /
+XFF verification stays deferred because the code under audit
+(CSRF middleware, rate-limit middleware) hasn't landed yet — SESSION_
+NOTES pass-2 item 9's "runCron not on the public allow-list" fix
+was the actionable half, and we take it now.
+
+**Files touched.**
+
+- `lib/cron.ts` — new. `runCron(req, cb)` wraps `/api/cron/*`
+  handlers: verifies `Authorization: Bearer ${CRON_SECRET}` in
+  constant time, generates a `correlationId` per invocation, stamps
+  `X-Correlation-Id` on the response, turns handler throws into
+  500 `cron_failed` (not 200 + error body, so Vercel retries on
+  transient failures). Dev loops with `SKIP_AUTH=1` /
+  `SKIP_DB=1` bypass the bearer check. Production without
+  `CRON_SECRET` returns 500 `cron_misconfigured` instead of 401 so
+  infra drift pages an operator.
+- `scripts/audit-auth.ts` — `runCron` added to `GUARD_PATTERNS` so
+  a cron handler using the helper counts as GUARDED, not
+  INTENTIONAL_PUBLIC. When the first `app/api/cron/*/route.ts`
+  lands, it wraps its body in `runCron` and stays off the
+  public allow-list.
+- `lib/env.ts` — `CRON_SECRET` added to `ENV`. Optional in dev
+  (empty fallback), required in prod (empty fallback + runtime
+  check in `lib/cron.ts`).
+- `__tests__/lib-cron.test.ts` — new. Covers the 7 paths:
+  misconfigured (prod + no secret), missing bearer, wrong bearer,
+  happy path, `SKIP_AUTH=1` bypass, handler throw, constant-time
+  compare on equal-length mismatches.
+- `scripts/preflight.sh` — new. Adapted from
+  `docs/xrepo/khaledaunsite/03-operations-and-deployment.md §Preflight`
+  to LVJ's actual toolchain (npm, not pnpm; audits instead of raw
+  psql; no Supabase connect yet). Required block mirrors the CI
+  `gates` job (A-002, A-003, A-005, A-004, + git cleanliness +
+  feature-branch check). Soft block runs tsc / lint / jest / build
+  + the `origin/main`-diffing Prisma / doc audits; failures print
+  but don't gate. Two `SKIP` lines for DB-reachability so the
+  deferred items remain visible. Flags: `--skip-install` (reuse
+  prior `npm ci`), `--json` (machine-readable summary).
+- `docs/DECISIONS.md` — D-025 follow-up: `preflight.sh` marked
+  landed with scope notes; `CRON_SECRET` marked already wired.
+- `docs/EXECUTION_LOG.md` — this entry; open-item for the post-0.7
+  cleanup narrowed to the still-deferred CSRF/XFF verifications.
+
+**Still deferred (post-0.7, blocked on feature code).**
+
+- CSRF content-type-exemption verification — waits on the CSRF
+  middleware itself. When it lands, a smoke spec asserts a POST
+  with no `Content-Type` still gets rejected.
+- Rightmost-XFF rate-limiter verification — waits on the rate-limit
+  middleware. When it lands, a unit test asserts the *rightmost*
+  value of a multi-hop `X-Forwarded-For` is the bucket key.
+
+---
+
 ## Rolling open items
 
 Copied from the commits above; delete lines here as they land.
 
 - [ ] Run `npx prisma migrate dev --name sprint0-foundation && npx prisma migrate dev --name aos-phase1 && npx prisma migrate dev --name add-tenancy` once a dev DB is reachable. Until then, Prisma client types will not reflect the new models and tests that touch DB are skipped via `SKIP_DB=1`.
-- [ ] Post-Sprint-0.7 cleanup PR — ~~A-005 dynamic-route audit (D-025 item 4)~~ (landed 2026-04-23), `scripts/preflight.sh` (KhaledAunSite-digest crib), CSRF content-type-exemption verification, rightmost-XFF rate-limiter verification, `runCron(req, cb)` helper so `/api/cron/*` stops leaning on the A-002 public allow-list.
+- [ ] Post-Sprint-0.7 cleanup PR — ~~A-005 dynamic-route audit (D-025 item 4)~~ (landed 2026-04-23), ~~`scripts/preflight.sh` (KhaledAunSite-digest crib)~~ (landed 2026-04-23), CSRF content-type-exemption verification, rightmost-XFF rate-limiter verification, ~~`runCron(req, cb)` helper so `/api/cron/*` stops leaning on the A-002 public allow-list~~ (landed 2026-04-23). CSRF + XFF verifications wait on the middleware code itself.
 - [ ] Bootstrap the Orchestrator from a server entry point: `import '@/lib/agents/register'; subscribeAgent('intake'); subscribeAgent('drafting'); subscribeAgent('email');` — ideally from a `/api/agents/bootstrap` stub that runs on cold start, gated by feature flags.
 - [ ] Flesh out the KB v0.1 articles (`core/disclaimers/upl.md`, `core/disclaimers/outcome.md`, `core/tone/*.md`, `core/escalation/matrix.md`, `core/privacy/consent.md`, `core/privacy/retention.md`, `core/languages.md`).
 - [ ] Execute the jest suite in an environment with `node_modules` installed — none of the tests have been executed in this sandbox.

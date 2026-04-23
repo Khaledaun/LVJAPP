@@ -60,6 +60,10 @@ const GUARD_PATTERNS = [
   /\bguardStaff\s*\(/,
   /\bguardAuthed\s*\(/,
   /\brunAuthed\s*\(/,
+  // Cron handlers self-authenticate via `lib/cron.ts` bearer check
+  // (`CRON_SECRET`). Added so `/api/cron/*` routes don't have to
+  // sit in `INTENTIONAL_PUBLIC`.
+  /\brunCron\s*\(/,
   /\bgetServerSession\s*\(/,
 ]
 
