@@ -185,7 +185,7 @@ ticks the boxes in the PR description.
 | `cron/audit-kb-staleness-weekly`    | A-011 | Mon 03:00 UTC       | Per-article issue assigned to skill owner          |
 | `cron/audit-cost-daily`             | A-006 | Daily 00:05 UTC     | Pause non-critical agents · email Platform Admin   |
 | `.github/workflows/a008-deps.yml`   | A-008 | Sun 04:00 UTC       | Issue with JSON summary; Sev-1 fails the workflow  |
-| `cron/audit-doc-discipline-weekly`  | A-010 | Sun 04:30 UTC       | Issue listing PRs that landed without log entries  |
+| `.github/workflows/a010-doc-discipline.yml` | A-010 | Sun 04:30 UTC | Issue listing violations + workflow fail on drift |
 
 All cron handlers are Vercel Cron Jobs per `Claude.md` AD#6. Each
 handler dispatches an event (`cron.audit.<id>`) on `lib/events.ts`;

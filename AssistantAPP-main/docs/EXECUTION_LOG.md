@@ -1468,6 +1468,35 @@ one obvious place.
 
 ---
 
+## 2026-04-23 · A-010 doc-discipline weekly → GitHub Actions workflow
+
+Same pattern as A-008: `scripts/lint-docs.ts` needs a full git
+history against `origin/main`, which Vercel serverless doesn't
+keep on disk. Move the weekly sweep to GitHub Actions where
+`checkout@v4 fetch-depth: 0` is trivial. The per-PR gate in
+`ci.yml` still runs — this sweep is the "catch anything that
+slipped" safety net.
+
+**Files touched.**
+
+- `.github/workflows/a010-doc-discipline.yml` (new) — weekly on
+  Sun 04:30 UTC. Computes the oldest commit in the past 7 days
+  on `origin/main`, runs `audit:docs:json` against that window,
+  opens or comments on `[a010] doc-discipline drift` with the
+  violation list, fails the workflow if any violations landed.
+  Same dedup key pattern as A-008 (`cron-audit,a010` labels).
+- `vercel.json` — removed the `/api/cron/audit-doc-discipline-
+  weekly` slot for the same 404-avoidance reason as A-008.
+- `docs/EXECUTION_PLAN.md` §2.5 — A-010 row points at the
+  workflow path.
+
+**Note on the window.** 7 days of commits sometimes include zero
+commits (holiday weeks, docs-only freezes). The workflow handles
+that explicitly — if no base commit is found in-window it sets
+`skipped=true` and exits 0.
+
+---
+
 ## 2026-04-23 · A-008 cron → GitHub Actions workflow
 
 Same branch. `EXECUTION_PLAN.md` §2.5 listed A-008 as
