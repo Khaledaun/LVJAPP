@@ -1468,6 +1468,63 @@ one obvious place.
 
 ---
 
+## 2026-04-23 · P1.4 · Cross-tenant PII access wrapper (`lib/cross-tenant-pii.ts`)
+
+Same branch. Closes the fourth closure item from the PRD↔Plan
+audit. PRD §4.10 / §5.5 target 100% audit-completeness for
+cross-tenant PII reads. `runPlatformOp` in `lib/tenants.ts`
+docstring claims an AuditLog row is written (`action =
+'platform.cross_tenant'`); the implementation doesn't emit the
+row — promise vs. delivery gap. This commit fixes the
+PII-specific half with a new wrapper.
+
+**Files touched.**
+
+- `lib/cross-tenant-pii.ts` (new) — `runCrossTenantPIIAccess(user,
+  opts, cb)` writes `AuditLog.action = 'cross_tenant_pii_access'`
+  **before** the callback runs, then delegates to `runPlatformOp`
+  for role check + AsyncLocalStorage context. Fail-closed: if
+  the audit path rejects, the cb never runs. `opts.reason`
+  (1..128 chars), `opts.targetTenantId` (required), optional
+  `opts.fieldsAccessed: string[]` for the monthly Tenant Admin
+  access summary digest per D-018.
+- `__tests__/lib-cross-tenant-pii.test.ts` (new) — 8 cases.
+  Covers audit-before-cb ordering; canonical action + metadata
+  shape; non-platform role rejection (via runPlatformOp); empty
+  / oversized reason rejection; missing targetTenantId rejection;
+  fieldsAccessed default; cb return-value passthrough.
+
+**Exports.**
+
+- `runCrossTenantPIIAccess(user, opts, cb): Promise<T>`
+- `CROSS_TENANT_PII_ACTION = 'cross_tenant_pii_access' as const`
+- `interface CrossTenantPIIAccessOptions`
+
+**Why a new wrapper, not a mutation of `runPlatformOp`.**
+`runPlatformOp` has 16+ call sites in the codebase. Mutating its
+side effects (adding a DB write) would be a diff-the-world
+change. The new wrapper is **opt-in**: code paths that read
+cross-tenant PII switch from `runPlatformOp` to this one; the
+diff is local.
+
+**Still deferred (tracked as follow-ups).**
+
+1. Actually writing the `action = 'platform.cross_tenant'` row
+   from `runPlatformOp` itself. The docstring has promised this
+   since Sprint 0.5; never delivered. Separate commit because
+   it touches the Prisma middleware path and needs regression
+   coverage on the 16 call sites.
+2. `logAuditEvent` should return `{ ok, reason }` instead of
+   swallowing errors silently, so `runCrossTenantPIIAccess` can
+   truly fail-closed in prod rather than trust a warn-only
+   audit. Minor lib refactor; separate commit.
+3. Surfacing the monthly Tenant Admin access summary (D-018) —
+   needs a new cron handler that groups
+   `action = 'cross_tenant_pii_access'` rows by `tenantId` and
+   emails / in-apps the tenant admin. Sprint 16 territory.
+
+---
+
 ## 2026-04-23 · P1.3 · `advice_class` gatekeeping (helper + A-012 static audit)
 
 Same branch. Closes the third closure item from the PRD↔Plan
