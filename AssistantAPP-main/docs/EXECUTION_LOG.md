@@ -1180,12 +1180,87 @@ isolation from the risky-half failures in other files).
 
 ---
 
+## 2026-04-23 · Post-0.7 cleanup — A-005 dynamic-route audit (D-025 item 4)
+
+Branch: `claude/post-0.7-a-005-dynamic-audit-X4mBc`.
+
+First slice of the post-Sprint-0.7 cleanup backlog. Lands the
+dynamic-route audit that D-025 item 4 reserves as a required gate
+from day 1, because static pre-render + middleware auth is a
+silent bypass — middleware runs on the *request* but Next.js
+serves the cached *response*, so a DB-reading handler that doesn't
+opt out of caching leaks data across sessions regardless of what
+`middleware.ts` decides.
+
+**Files touched.**
+
+- `scripts/audit-dynamic.ts` — new. Walks `app/` for `route.ts(x)`
+  and `page.tsx`, classifies each as DB_READING or STATIC_OK via a
+  static marker scan (`@/lib/db` import, `getPrisma(`,
+  `runAuthed(`, `runPlatformOp(`, `prisma.*` call). For DB_READING
+  files, requires both `export const dynamic = 'force-dynamic'`
+  and `export const revalidate = 0`. Exits 1 on any violation,
+  with a per-file reason table. `INTENTIONAL_STATIC` allowlist is
+  empty today; each future entry must carry a written
+  justification.
+- `package.json` — `audit:dynamic` + `audit:dynamic:json` scripts
+  alongside `audit:auth` / `audit:tenant`.
+- `.github/workflows/ci.yml` — new required step in the `gates`
+  job (`A-005 · dynamic-route audit (D-025 item 4)`), wired
+  between `audit:auth` and the informational `audit:jurisdiction`.
+  Header comment updated.
+- `app/api/cases/route.ts`,
+  `app/api/cases/[id]/route.ts`,
+  `app/api/cases/[id]/external-partners/route.ts`,
+  `app/api/partner-roles/route.ts`,
+  `app/api/payments/simple/route.ts`,
+  `app/api/service-types/route.ts`,
+  `app/api/service-types/[id]/route.ts` — added
+  `export const dynamic = 'force-dynamic'` +
+  `export const revalidate = 0` directly after the imports. All
+  seven import `getPrisma` and use `runAuthed`, so they were real
+  violations waiting to fire the moment Supabase connects.
+- `app/api/audit/route.ts` — added `revalidate = 0`; already had
+  `force-dynamic` but not the pair.
+- `docs/DECISIONS.md` — marked the D-025 `audit-dynamic.ts`
+  follow-up landed.
+- `docs/EXECUTION_LOG.md` — this entry; open-item line for the
+  post-0.7 cleanup narrowed to the remaining sub-items.
+
+**Audit result.**
+
+`npm run audit:dynamic` scans 47 files under `app/`, 25 DB_READING
+/ 22 STATIC_OK, 0 violations. Re-runs are idempotent.
+
+**What this audit does NOT catch.**
+
+- Transitive DB reads through un-annotated helpers (e.g. a
+  `lib/util.ts` that eventually calls `prisma.x.findMany`). Keep
+  the direct-marker contract — detecting transitivity would
+  require a full module graph and produce false positives on
+  every shared helper. The answer when it comes up is to annotate
+  the entry points, not to widen the audit.
+- Runtime `dynamic = 'auto'` routes that happen to return the same
+  body every time. The audit is conservative on purpose; caching
+  behaviour is too contextual to encode statically.
+
+**Deferred (rest of the post-0.7 cleanup).**
+
+- `scripts/preflight.sh` — KhaledAunSite-digest crib for the
+  five-item D-025 checklist on `supabase db push`.
+- CSRF content-type-exemption verification.
+- Rightmost-XFF rate-limiter verification.
+- `runCron(req, cb)` helper so `/api/cron/*` stops leaning on the
+  A-002 public allow-list.
+
+---
+
 ## Rolling open items
 
 Copied from the commits above; delete lines here as they land.
 
 - [ ] Run `npx prisma migrate dev --name sprint0-foundation && npx prisma migrate dev --name aos-phase1 && npx prisma migrate dev --name add-tenancy` once a dev DB is reachable. Until then, Prisma client types will not reflect the new models and tests that touch DB are skipped via `SKIP_DB=1`.
-- [ ] Post-Sprint-0.7 cleanup PR — A-005 dynamic-route audit (D-025 item 4), `scripts/preflight.sh` (KhaledAunSite-digest crib), CSRF content-type-exemption verification, rightmost-XFF rate-limiter verification, `runCron(req, cb)` helper so `/api/cron/*` stops leaning on the A-002 public allow-list.
+- [ ] Post-Sprint-0.7 cleanup PR — ~~A-005 dynamic-route audit (D-025 item 4)~~ (landed 2026-04-23), `scripts/preflight.sh` (KhaledAunSite-digest crib), CSRF content-type-exemption verification, rightmost-XFF rate-limiter verification, `runCron(req, cb)` helper so `/api/cron/*` stops leaning on the A-002 public allow-list.
 - [ ] Bootstrap the Orchestrator from a server entry point: `import '@/lib/agents/register'; subscribeAgent('intake'); subscribeAgent('drafting'); subscribeAgent('email');` — ideally from a `/api/agents/bootstrap` stub that runs on cold start, gated by feature flags.
 - [ ] Flesh out the KB v0.1 articles (`core/disclaimers/upl.md`, `core/disclaimers/outcome.md`, `core/tone/*.md`, `core/escalation/matrix.md`, `core/privacy/consent.md`, `core/privacy/retention.md`, `core/languages.md`).
 - [ ] Execute the jest suite in an environment with `node_modules` installed — none of the tests have been executed in this sandbox.

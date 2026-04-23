@@ -4,6 +4,7 @@
 #
 #   1. gates (REQUIRED) — the per-PR audit gate from docs/EXECUTION_PLAN.md §2.4.
 #      Enforces the invariants this PR introduces: auth-on-every-route (A-002),
+#      dynamic-route (A-005, D-025 item 4),
 #      tenant-isolation (A-003, D-023 — blocking since Sprint 0.5.1),
 #      jurisdiction sweep, doc discipline, prisma additive-only. Must be green
 #      to merge.
@@ -60,6 +61,9 @@ jobs:
 
       - name: A-002 · auth-on-every-route audit
         run: npm run audit:auth
+
+      - name: A-005 · dynamic-route audit (D-025 item 4)
+        run: npm run audit:dynamic
 
       - name: A-004 · jurisdiction audit (informational)
         run: npm run audit:jurisdiction

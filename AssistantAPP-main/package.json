@@ -23,6 +23,8 @@
     "playwright:install": "playwright install",
     "audit:auth": "tsx scripts/audit-auth.ts",
     "audit:auth:json": "tsx scripts/audit-auth.ts --json",
+    "audit:dynamic": "tsx scripts/audit-dynamic.ts",
+    "audit:dynamic:json": "tsx scripts/audit-dynamic.ts --json",
     "audit:jurisdiction": "tsx scripts/audit-jurisdiction.ts",
     "audit:jurisdiction:json": "tsx scripts/audit-jurisdiction.ts --json",
     "audit:docs": "tsx scripts/lint-docs.ts",

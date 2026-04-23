@@ -624,7 +624,9 @@
   this decision binds the pattern so the migration author doesn't
   re-discover it.
 - **Follow-ups.**
-  - `scripts/audit-dynamic.ts` (A-005) — next post-0.7 cleanup PR.
+  - ~~`scripts/audit-dynamic.ts` (A-005) — next post-0.7 cleanup PR.~~
+    **Landed** 2026-04-23 in the A-005 cleanup PR. Required CI gate,
+    wired into `gates` job alongside A-002 / A-003.
   - `scripts/audit-prisma.ts` — add `supabase.from('<PascalCase>')`
     check in the commit that lands the first raw Supabase query.
   - `scripts/preflight.sh` — follow-up PR post-Sprint-0.7.
