@@ -1468,6 +1468,79 @@ one obvious place.
 
 ---
 
+## 2026-04-23 · First 4 cron handlers — `/api/cron/audit-*`
+
+Same branch. Wires the first 4 of the 11 cron slots declared in
+`vercel.json` to the `runCron`-guarded handler pattern shipped
+earlier on this branch. Each imports its audit library entry
+point from `lib/audits/` (from the refactor commit that just
+landed) and returns a JSON summary. GitHub-issue opening on
+findings is deferred until `GITHUB_TOKEN` lands — the
+correlation id on the response is the trail.
+
+**Handlers shipped.**
+
+- `app/api/cron/audit-auth-weekly/route.ts` — A-002, Sun 03:00 UTC.
+  Runs `runAuditAuth()`; returns `{ id: 'a002', ok, total, counts,
+  violations }`. `ok: false` when any UNAUTHED route is found.
+- `app/api/cron/audit-tenant-nightly/route.ts` — A-003, daily
+  03:15 UTC. Runs `runAuditTenant()`; returns the schema sync
+  report + per-route violations. Nightly (not weekly) because
+  D-023 drift is a Sev-1 pager event.
+- `app/api/cron/audit-jurisdiction-weekly/route.ts` — A-004, Sun
+  03:30 UTC. Informational; body always `ok: true`, carries
+  `perTerm` breakdown + a 200-entry sample of non-allowlisted
+  hits.
+- `app/api/cron/audit-kb-staleness-weekly/route.ts` — A-011, Mon
+  03:00 UTC. Informational; full articles array in response
+  (~30 rows today, small).
+
+**Shape.** Every handler:
+
+1. Declares `runtime = 'nodejs'`, `dynamic = 'force-dynamic'`,
+   `revalidate = 0`.
+2. Exports `GET(req)` only (Vercel Cron sends GET).
+3. Wraps the body in `runCron(req, async ({ correlationId, path })
+   => {...})`. Unauthorized callers get 401; misconfigured prod
+   (no `CRON_SECRET`) gets 500 `cron_misconfigured`.
+4. Returns HTTP 200 with a JSON summary even on audit failure —
+   the `ok: false` field + populated `violations` are the fail
+   signal. 500 would make Vercel retry, which doesn't help a
+   deterministic audit on the same deploy.
+5. Classifies as GUARDED under A-002 (`runCron` is in
+   `GUARD_PATTERNS`) and as STATIC_OK under A-005 (no DB marker).
+
+**Test.**
+
+- `__tests__/api-cron-audit-auth.test.ts` — 5 cases exercising
+  the `runCron` contract through a real cron handler: 401 on
+  missing bearer, 401 on wrong bearer, happy path with the
+  audit summary payload, X-Correlation-Id stamp on the auth
+  path, `SKIP_AUTH=1` dev bypass. The test imports `GET` from
+  the route file directly; jest's `jsdom` default is
+  overridden per-file with `@jest-environment node`.
+
+**Still deferred.**
+
+- `/api/cron/audit-cost-daily` (A-006) — needs DB + cost-guard
+  aggregate queries.
+- `/api/cron/audit-deps-weekly` (A-008) — needs `npm audit
+  --json` in a serverless context; likely easier as a GitHub
+  Action than a Vercel cron.
+- `/api/cron/audit-doc-discipline-weekly` (A-010) — git-diffing
+  against `origin/main` from a serverless handler is awkward;
+  punt until the issue-opener lands and we can re-evaluate.
+- `/api/cron/deadline-alert`, `.../marketing-hitl-escalate`,
+  `.../commission-settle`, `.../analytics-rollup` — all DB-
+  dependent, all blocked on Supabase connect.
+- Issue-opener subscriber (`lib/audits/issue-opener.ts`) —
+  consumes the handler JSON, calls `mcp__github__issue_write`
+  (or the REST API with `GITHUB_TOKEN`) to open one issue per
+  violation, tags `@<owner>` from each article's frontmatter
+  where applicable. Lands when the token is provisioned.
+
+---
+
 ## 2026-04-23 · Audit library refactor — `lib/audits/` modules
 
 Same branch. Mechanical refactor: the five existing audit scripts
