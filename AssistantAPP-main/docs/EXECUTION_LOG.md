@@ -1418,6 +1418,56 @@ before hard-failing real users.
 
 ---
 
+## 2026-04-23 · Agent bootstrap endpoint — `/api/agents/bootstrap`
+
+Same branch. Closes the "Bootstrap the Orchestrator from a server
+entry point" rolling item. The Phase-1 agent runtime has been
+registered-at-import-time since Sprint 0.4, but `subscribeAgent`
+(which binds manifest triggers to the event bus) was never called,
+so the agents existed but didn't react. This adds the call site —
+staff-guarded, idempotent, flag-gated.
+
+**Files touched.**
+
+- `lib/agents/orchestrator.ts` — `subscribeAgent` is now idempotent.
+  `on()` in `lib/events.ts` appends without dedup, so a re-call
+  would double every trigger handler; we now short-circuit on a
+  per-agent `subscribed` Set. New exports: `isSubscribed(id)`,
+  `listSubscribed()`. `clearRoutes()` wipes both routes array and
+  the subscribed set (tests only).
+- `lib/agents/invoke.ts` — `isFeatureFlagEnabled` exported so the
+  bootstrap route shares the exact same flag-parsing semantics
+  (`1` / `true` / `yes`, case-insensitive) as the invoke runtime.
+  No behaviour change inside `invoke`.
+- `app/api/agents/bootstrap/route.ts` — new. Staff-guarded POST
+  iterates `['intake', 'drafting', 'email']`, calls
+  `subscribeAgent(id)` for each whose `featureFlag` env is
+  truthy and isn't already subscribed. Returns
+  `{ bootstrapped, skippedDisabled, skippedAlreadyBound,
+  skippedUnknown, subscribed }` so operators can verify the
+  binding took. GET is read-only introspection of flag state +
+  current subscriptions. Both methods declare
+  `dynamic = 'force-dynamic'` + `revalidate = 0` per A-005.
+- `__tests__/agents/orchestrator-subscribe.test.ts` — new. 5
+  cases: first-call binds, second-call is a no-op (the
+  regression that motivated idempotency), independent agents
+  bind independently, unknown id throws, `clearRoutes` wipes
+  both structures and allows rebind.
+- `docs/EXECUTION_LOG.md` — this entry.
+
+**Behavioural change.** Zero for users: flags default OFF in every
+environment. The only observable difference is `/api/agents/
+bootstrap` exists. Flipping a flag + POSTing is the arming step.
+
+**Why a route, not a module init.** Next.js App Router doesn't
+provide a "server startup" hook — module-level side-effects run
+on the first request that needs them, which is too implicit for
+an ops-visible step like "the agents are armed". A route call
+site is grep-able in logs and CI, and it keeps the flag check in
+one obvious place.
+
+---
+
 ## 2026-04-23 · Rate-limit middleware rollout — flag-gated (off → report-only → enforce)
 
 Same branch. Parallel to the CSRF rollout — `applyRateLimit`
@@ -1466,7 +1516,7 @@ Copied from the commits above; delete lines here as they land.
 - [ ] Ship Upstash backend for `checkRateLimit` alongside the Upstash env vars + prod smoke. Until it lands, `RATE_LIMIT_MODE=enforce` in prod is best-effort only (in-memory Map doesn't share across Edge instances).
 - [x] ~~Wire rate-limit into `middleware.ts` with `RATE_LIMIT_MODE` (off | report-only | enforce)~~ (landed 2026-04-23, default `off`). Same staging flip as CSRF.
 - [ ] Flip `RATE_LIMIT_MODE` from `off` → `report-only` on staging once CSRF enforce is green, then `enforce` after the Upstash backend lands.
-- [ ] Bootstrap the Orchestrator from a server entry point: `import '@/lib/agents/register'; subscribeAgent('intake'); subscribeAgent('drafting'); subscribeAgent('email');` — ideally from a `/api/agents/bootstrap` stub that runs on cold start, gated by feature flags.
+- [x] ~~Bootstrap the Orchestrator from `/api/agents/bootstrap`~~ (landed 2026-04-23). Staff-guarded `POST` binds every `AGENT_*_ENABLED=1` agent via the now-idempotent `subscribeAgent`; `GET` is read-only introspection. Flags default OFF, so cold-start POST without flags set is a no-op.
 - [ ] Flesh out the KB v0.1 articles (`core/disclaimers/upl.md`, `core/disclaimers/outcome.md`, `core/tone/*.md`, `core/escalation/matrix.md`, `core/privacy/consent.md`, `core/privacy/retention.md`, `core/languages.md`).
 - [ ] Execute the jest suite in an environment with `node_modules` installed — none of the tests have been executed in this sandbox.
 - [ ] Port the remaining design-pack screens (Admin Service Types refresh, client portal, analytics/billing dashboards, outcome predictor) when their sprints arrive.
