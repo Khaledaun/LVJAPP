@@ -1194,16 +1194,43 @@ direction.
 - [x] **`scripts/audit-kb-staleness.ts`** — A-011 (informational).
       Classifies each `skills/**/*.md` as FRESH / STALE / EXPIRED
       / INVALID / LEGACY. Landed with D-026.
-- [ ] **`scripts/smoke/<id>.ts`** — S-001 … S-013 scaffolding;
-      landed incrementally per sprint.
+- [~] **`scripts/smoke/<id>.ts`** — S-001 … S-013 scaffolding;
+      landed incrementally per sprint. S-003 (auth), S-009 (webflow
+      webhook), S-010 (locale), CSRF route-level smoke live in
+      `e2e-tests/`.
 - [x] **`scripts/pii-scrub.ts`** — centralised `scrubPii` +
       `scrubPiiDeep` (9 patterns: email, phone, passport, SSN, NIF,
       card, IBAN, DOB, IP). Wired from agents in §8 C-019.
 - [x] **`.github/workflows/ci.yml`** — per-PR audit + smoke battery.
+- [x] **`.github/workflows/a008-deps.yml`** — weekly `npm audit`
+      (moved from Vercel cron; needs full dep tree).
+- [x] **`.github/workflows/a010-doc-discipline.yml`** — weekly
+      doc-discipline sweep against the past 7 days of `origin/main`.
 - [x] **`.claude/settings.json`** — project settings for Claude Code
       (permissions + env baseline).
-- [x] **`vercel.json` cron block** — declares 11 crons (7 audits + 4
-      operational). Handlers land per sprint.
+- [x] **`vercel.json` cron block** — declares 9 crons (4 audit
+      handlers shipped, 5 operational pending DB / infra).
+- [x] **`app/api/cron/audit-{auth-weekly,tenant-nightly,
+      jurisdiction-weekly,kb-staleness-weekly}/route.ts`** — first
+      4 audit cron handlers. Each wraps in `runCron`, returns a
+      JSON summary, and (A-002 only today) opens a GitHub issue
+      per violation via `lib/audits/issue-opener.ts`.
+- [x] **`app/api/agents/bootstrap/route.ts`** — staff-guarded POST
+      binds flag-enabled agents via idempotent
+      `orchestrator.subscribeAgent`.
+- [x] **`lib/csrf.ts` + `lib/rate-limit.ts`** — CSRF (no
+      content-type exemption, staircase via `CSRF_MODE`) + in-memory
+      rate-limit (rightmost XFF, staircase via `RATE_LIMIT_MODE`)
+      wired into `middleware.ts` for `/api/:path*`. Upstash prod
+      backend deferred.
+- [x] **`lib/cron.ts`** — `runCron(req, cb)` bearer guard for
+      `/api/cron/*`. Added to A-002 `GUARD_PATTERNS`.
+- [x] **`scripts/preflight.sh`** — local "am I allowed to deploy?"
+      driver. Required block mirrors CI `gates`; soft block =
+      tsc/lint/jest/build + origin/main-diffing audits.
+- [x] **`scripts/check-env.ts` + `lib/env-validate.ts`** — typed
+      env validator; preflight-integrated; deploy-script consumable
+      via `--json`.
 
 ### 12.2 Infrastructure gaps
 
@@ -1238,12 +1265,34 @@ direction.
 - **Quarterly review cadence confirmation.** §5.6 default is
   quarterly; confirm with founder.
 
-### 12.5 Fresh next actions (out of this PR)
+### 12.5 Fresh next actions
 
-1. Review + merge this PR (`claude/execution-plan-framework-Ls8tj`).
-2. Sprint 0.1 kickoff — use §10.2 recipe.
-3. Write `scripts/audit-auth.ts` as Sprint 0.1's first deliverable.
-4. Provision a Postgres instance (blocker for 0.5).
+Scoped to what the maintainer can do without infra that's pending
+(Supabase, Upstash, Stripe, etc.). Post-0.7 cleanup closed on
+`claude/post-0.7-a-005-dynamic-audit-X4mBc`.
+
+1. **Flip `CSRF_MODE` on staging** → `report-only` for a week, then
+   `enforce`. Grep Vercel logs for `[csrf] report-only` during the
+   report-only window.
+2. **Flip `RATE_LIMIT_MODE` on staging** → `report-only` after
+   CSRF enforce is green. Hold prod `enforce` until the Upstash
+   backend lands.
+3. **Provision `CRON_SECRET` + `GITHUB_TOKEN` + `GITHUB_REPOSITORY`**
+   on Vercel prod. `npm run env:check` reports green afterward.
+   Cron issue-opener then creates real issues on A-002 findings.
+4. **Supabase connect PR.** The D-025 five-item checklist; wires
+   `DATABASE_URL` + `DIRECT_URL`, runs the pending `prisma migrate
+   dev` commands, adds the `@@map` sub-check to `audit-prisma.ts`
+   when the first raw query lands.
+5. **Sprint 0.5.x follow-through on cron handlers.**
+   `/api/cron/audit-cost-daily` (A-006), `/deadline-alert`,
+   `/marketing-hitl-escalate`, `/commission-settle`,
+   `/analytics-rollup` — each blocks on DB availability from step
+   4.
+6. **Issue #11 risky half** (separate branch) — `@prisma/client`
+   enum re-export, `@types/react` recharts override,
+   `lib/agents/invoke.ts` generic cast. When `tsc --noEmit` flips
+   to zero, CI `legacy-checks` step goes blocking.
 
 ---
 

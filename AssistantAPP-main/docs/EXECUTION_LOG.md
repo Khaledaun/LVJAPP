@@ -1468,6 +1468,33 @@ one obvious place.
 
 ---
 
+## 2026-04-23 · Refresh EXECUTION_PLAN §12 checklist to post-0.7 reality
+
+Same branch. §12.1 (tooling checklist) was out of date — it listed
+`scripts/audit-tenant.ts` as `[ ]` (actually landed Sprint 0.5.1)
+and omitted every post-0.7 file landed on this branch (cron
+handlers, lib/cron, lib/csrf, lib/rate-limit, lib/audits/*,
+issue-opener, preflight, env validator, A-008/A-010 GitHub
+Actions). §12.5 still pointed at a merged PR's branch name. Both
+refreshed.
+
+**Files touched.**
+
+- `docs/EXECUTION_PLAN.md` §12.1 — tooling checklist brought up
+  to date. Smoke row downgraded `[ ]` → `[~]` (partial — S-003 /
+  S-009 / S-010 / CSRF live in e2e-tests; the remaining S-001/2/
+  4-8/11-13 land per their respective sprints).
+- `docs/EXECUTION_PLAN.md` §12.5 — fresh next actions aligned
+  with the post-0.7 cleanup state: flip CSRF_MODE / RATE_LIMIT_MODE
+  on staging, provision CRON_SECRET + GITHUB_TOKEN, Supabase
+  connect (D-025), DB-dependent cron handlers, Issue #11 risky
+  half.
+
+Plan stays at v1.2 (bumped in D-026 earlier in this PR). A-010-R2
+passes since base-to-head diff already carries the version bump.
+
+---
+
 ## 2026-04-23 · Env validator — `lib/env-validate.ts` + `npm run env:check`
 
 Same branch. Fail-fast-at-the-right-layer for the ops flags
