@@ -1468,6 +1468,57 @@ one obvious place.
 
 ---
 
+## 2026-04-23 · P1.3 · `advice_class` gatekeeping (helper + A-012 static audit)
+
+Same branch. Closes the third closure item from the PRD↔Plan
+audit. PRD §7.1 R1 (High severity): only a jurisdiction-licensed
+lawyer may set `Case.adviceClass = 'attorney_approved_advice'`.
+Schema allowed the value; no runtime check enforced the licensing
+rule. Fix: a deny-by-default helper + a static audit that flags
+any code path setting the literal outside the helper.
+
+**Files touched.**
+
+- `lib/rbac-advice-class.ts` (new) — `assertCanSetAdviceClass(ctx)`
+  throws `AttorneyApprovedError` (status 403) unless: target is
+  `general_information` / `firm_process` (always pass), or role
+  is `LAWYER_ADMIN` / `LAWYER_ASSOCIATE` AND
+  `User.licensedJurisdictions` includes the case's
+  `destinationJurisdiction`. Since the `licensedJurisdictions`
+  field isn't in the schema yet (Sprint 1 auth extension),
+  lawyers also deny-by-default with a schema-missing error —
+  until the field lands, only the `ALLOW_ATTORNEY_APPROVED=1`
+  dev escape (non-prod only) passes. `guardAdviceClass` is the
+  route-handler sugar returning `null | Response`.
+- `lib/audits/advice-class.ts` (new) — A-012 static audit.
+  Walks the repo, flags any `adviceClass:
+  'attorney_approved_advice'` / `adviceClass:
+  "attorney_approved_advice"` that isn't paired with an
+  `assertCanSetAdviceClass` / `guardAdviceClass` call in the
+  same file. Self-allowlists test + doc + KB + agent paths.
+- `scripts/audit-advice-class.ts` (new) — CLI wrapper.
+- `__tests__/lib-rbac-advice-class.test.ts` (new) — 7 cases:
+  general_information / firm_process always pass; non-lawyer
+  roles denied; lawyers denied (deny-by-default); missing
+  jurisdiction denied; dev escape hatch honoured outside prod;
+  ignored in prod; status 403 on error.
+- `package.json` — `audit:advice-class` + `:json` scripts.
+- `.github/workflows/ci.yml` — new required step in `gates`
+  (after A-003). Blocking per PRD §7.1 R1 Sev-1 classification.
+
+**Audit result today.** A-012 scans 305 files, finds 1 hit (the
+pattern string in `lib/audits/advice-class.ts` itself, which is
+self-allowlisted). 0 violations.
+
+**When Sprint 1 auth extension adds `User.licensedJurisdictions:
+string[]`**, the TODO block in `lib/rbac-advice-class.ts` swaps
+to the real check (`licensed.includes(ctx.caseDestinationJurisdiction)`).
+A-012 ensures no parallel write-path exists that bypasses the
+helper — when that schema change ships, the helper becomes real
+enforcement with no audit surface drift.
+
+---
+
 ## 2026-04-23 · P0.2 · HITL SLA enforcement cron (`/api/cron/hitl-sla-sweep`)
 
 Same branch. Closes the second P0 gap from the PRD↔Plan audit.

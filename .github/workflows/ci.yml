@@ -83,6 +83,9 @@ jobs:
       - name: A-003 · tenant-isolation audit (blocking since Sprint 0.5.1)
         run: npm run audit:tenant
 
+      - name: A-012 · advice_class gatekeeping audit (PRD R1)
+        run: npm run audit:advice-class
+
   legacy-checks:
     name: legacy-checks · tsc/lint/test/build/smoke (informational)
     runs-on: ubuntu-latest
