@@ -1,0 +1,158 @@
+# A-008 · Dependency / CVE audit (EXECUTION_PLAN §2.1)
+#
+# Weekly `npm audit` run. Vercel Cron is the wrong place for this —
+# serverless functions don't have the full dev-dep tree on disk, and
+# `npm audit` relies on the lockfile + fetch to the registry.
+# GitHub Actions has native access to both, so A-008 lives here
+# instead of under `/api/cron/audit-deps-weekly`.
+#
+# On failure: opens / updates a GitHub issue carrying the JSON
+# summary. Uses the same `cron-audit,a008` label pair as the
+# Vercel-cron issue opener (`lib/audits/issue-opener.ts`) so both
+# surfaces converge on the same dedup key.
+#
+# Ops:
+#   - Sev-1 CVE (score >= 9.0 OR severity === 'critical') → merge
+#     block on any open PR (enforced downstream by branch protection
+#     on this workflow's status check).
+#   - Sev-2 / Sev-3 findings → issue only.
+#   - No findings → no-op; existing open issue closes itself on the
+#     next clean run.
+
+name: a008-deps
+
+on:
+  schedule:
+    # Sun 04:00 UTC — matches EXECUTION_PLAN §2.5 row `cron/audit-deps-weekly`.
+    - cron: '0 4 * * 0'
+  workflow_dispatch:
+    inputs:
+      open_issue:
+        description: 'Open/update an issue on findings'
+        required: false
+        default: 'true'
+
+permissions:
+  contents: read
+  issues: write
+
+defaults:
+  run:
+    working-directory: AssistantAPP-main
+
+jobs:
+  audit:
+    name: A-008 · npm audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: AssistantAPP-main/package-lock.json
+
+      - name: Install dependencies (production tree only)
+        run: npm ci
+
+      - name: Run npm audit
+        id: audit
+        run: |
+          set +e
+          npm audit --omit=dev --audit-level=low --json > audit.json
+          echo "exit=$?" >> "$GITHUB_OUTPUT"
+          set -e
+
+      - name: Summarise findings
+        id: summary
+        run: |
+          node --no-warnings -e "
+            const fs = require('fs');
+            const raw = JSON.parse(fs.readFileSync('audit.json', 'utf8'));
+            const meta = raw.metadata?.vulnerabilities ?? {};
+            const sev = ['info','low','moderate','high','critical'];
+            const line = sev.map(s => s + '=' + (meta[s] ?? 0)).join(' ');
+            const total = sev.reduce((a,s) => a + (meta[s] ?? 0), 0);
+            const sev1 = (meta.critical ?? 0) + (meta.high ?? 0);
+            const body = [
+              '## A-008 · npm audit (\`' + new Date().toISOString().slice(0,10) + '\`)',
+              '',
+              'Counts: ' + line,
+              '',
+              'Run: ' + (process.env.GITHUB_SERVER_URL || 'https://github.com') + '/' + (process.env.GITHUB_REPOSITORY || '') + '/actions/runs/' + (process.env.GITHUB_RUN_ID || ''),
+              '',
+              '<details><summary>Raw JSON (truncated at 40KB)</summary>',
+              '',
+              '\`\`\`json',
+              JSON.stringify(raw, null, 2).slice(0, 40000),
+              '\`\`\`',
+              '',
+              '</details>',
+            ].join('\\n');
+            fs.writeFileSync('audit-body.md', body);
+            fs.writeFileSync('audit-summary.txt', 'total=' + total + ' sev1=' + sev1);
+            console.log('total=' + total);
+            console.log('sev1=' + sev1);
+          "
+          {
+            echo "total=$(grep -oE 'total=[0-9]+' audit-summary.txt | cut -d= -f2)"
+            echo "sev1=$(grep -oE 'sev1=[0-9]+' audit-summary.txt | cut -d= -f2)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Open / update issue on findings
+        if: steps.summary.outputs.total != '0' && github.event.inputs.open_issue != 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs')
+            const body = fs.readFileSync('AssistantAPP-main/audit-body.md', 'utf8')
+            const title = `[a008] npm audit · ${new Date().toISOString().slice(0,10)}`
+            const labels = ['cron-audit', 'a008']
+
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: labels.join(','),
+              per_page: 100,
+            })
+            const hit = existing.data.find(i => i.title.startsWith('[a008] npm audit'))
+
+            if (hit) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: hit.number,
+                body,
+              })
+              core.setOutput('issue', hit.number)
+              core.setOutput('action', 'commented')
+            } else {
+              const created = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels,
+              })
+              core.setOutput('issue', created.data.number)
+              core.setOutput('action', 'created')
+            }
+
+      - name: Fail the workflow on Sev-1 findings
+        if: steps.summary.outputs.sev1 != '0'
+        run: |
+          echo "::error::A-008 · Sev-1 CVE detected (${{ steps.summary.outputs.sev1 }}); see the audit issue."
+          exit 1
+
+      - name: Upload audit JSON as artefact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit-json
+          path: AssistantAPP-main/audit.json
+          retention-days: 30

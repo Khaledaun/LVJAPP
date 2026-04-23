@@ -1468,6 +1468,39 @@ one obvious place.
 
 ---
 
+## 2026-04-23 · A-008 cron → GitHub Actions workflow
+
+Same branch. `EXECUTION_PLAN.md` §2.5 listed A-008 as
+`cron/audit-deps-weekly` (Vercel cron), but Vercel serverless
+doesn't have the dev-dep tree or lockfile available to `npm audit`
+at runtime. GitHub Actions runners do. Move the audit there.
+
+**Files touched.**
+
+- `.github/workflows/a008-deps.yml` (new) — weekly schedule
+  (Sun 04:00 UTC, matching the plan row). Runs `npm audit
+  --omit=dev --audit-level=low --json`, summarises into
+  `total=N sev1=M`, opens or comments on a single tracked
+  issue (`cron-audit,a008` labels — same dedup key the
+  Vercel-cron issue-opener uses, so the two surfaces agree on
+  ownership). Fails the workflow on any Sev-1 finding
+  (`critical` + `high`); Sev-2/3 → issue only. Uploads the
+  raw JSON as a 30-day artefact.
+- `vercel.json` — removed the `/api/cron/audit-deps-weekly`
+  entry so Vercel stops 404'ing on the slot weekly.
+- `docs/EXECUTION_PLAN.md` §2.5 — A-008 row now points at the
+  GitHub Actions workflow path instead of a cron URL. Version
+  header stays at 1.2 (bumped earlier in D-026; this edit is
+  within the same PR diff against `origin/main`).
+
+**Why not fail on Sev-2?** Sev-2 findings are real but rarely
+urgent enough to block other merges — dependabot or a scheduled
+`npm audit fix` PR covers them. Keeping the workflow-fail gate
+tight on Sev-1 only prevents a nightly false positive from
+blocking every open PR via required-status checks.
+
+---
+
 ## 2026-04-23 · Cron issue-opener — `lib/audits/issue-opener.ts`
 
 Same branch. Adds the subscriber that turns a cron-audit finding
