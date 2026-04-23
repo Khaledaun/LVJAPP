@@ -1468,6 +1468,69 @@ one obvious place.
 
 ---
 
+## 2026-04-23 · Cron issue-opener — `lib/audits/issue-opener.ts`
+
+Same branch. Adds the subscriber that turns a cron-audit finding
+into a tracked GitHub issue. Deferred-but-safe-to-ship pattern:
+without `GITHUB_TOKEN` + `GITHUB_REPOSITORY` it logs
+`[issue-opener] would open: …` and returns
+`{ opened: false, reason: 'no_token' }`. When the token lands
+(env var in Vercel prod + Sev-1 on-call paging), the next cron
+run opens real issues. No code change to turn on.
+
+**Files touched.**
+
+- `lib/audits/issue-opener.ts` (new) — `openAuditIssue(input)`
+  returning `{ opened, reason? | number + url }`. Behaviour
+  matrix:
+  * no token OR no `GITHUB_REPOSITORY` → log + `reason: no_token`
+  * token + `GITHUB_ISSUE_OPENER_MODE=dry` → log + `reason: dry_run`
+  * token + dedupe hit (same `title` + open issue with
+    `cron-audit,<auditId>` labels) → POST comment + `reason:
+    duplicate, detail: existing #<n>`
+  * token + no dup → POST new issue + `opened: true`.
+  Idempotency via search-first pattern. Non-2xx responses surface
+  as `api_error`; exceptions are caught and surfaced the same way.
+  No retries — a cron runs once a week and the next run covers a
+  transient GH outage.
+- `app/api/cron/audit-auth-weekly/route.ts` — wires in the opener
+  for every UNAUTHED row. Issue body explains the Sev-1 rule,
+  lists the valid guards to wrap the handler in, and stamps the
+  cron's `correlationId` at the bottom. `issues` array joins the
+  response summary so operators can see which findings actually
+  opened an issue vs. which were duplicates or dry-run.
+- `__tests__/lib-audits-issue-opener.test.ts` (new) — 6 cases:
+  no token; token + no repo; dry-run respected; fresh open
+  (POSTs correct payload with labels); duplicate comments on the
+  existing issue and does NOT POST a second; api_error on non-2xx
+  create. Uses a stubbed `globalThis.fetch` so the tests never
+  hit the network.
+- `__tests__/api-cron-audit-auth.test.ts` — +1 case confirming
+  the response includes `issues: []` on a clean audit run.
+
+**Why not for A-003 / A-004 / A-011 yet?** A-003 violations are
+better surfaced as a single paging incident than N issues — the
+nightly handler calls the pager when that integration lands.
+A-004 is informational and high-volume (38 non-allowlisted hits
+today); opening 38 issues weekly would be noise. A-011 does want
+per-article issues but needs `assignees` populated from each
+article's `owner` frontmatter, which takes a small
+owner → GitHub-handle map that hasn't been captured yet.
+
+**Env reference.**
+
+- `GITHUB_TOKEN` — fine-grained PAT with `issues:write` scope on
+  the target repo. Scope it tight; the cron only needs to create
+  issues and comments.
+- `GITHUB_REPOSITORY` — `<owner>/<repo>` slug. Defaults to Vercel's
+  built-in env var when deploying from a GitHub integration; can
+  also be overridden via `CRON_ISSUE_OPENER_REPO` for staging
+  dry-runs against a test repo.
+- `GITHUB_ISSUE_OPENER_MODE` — set to `dry` to force log-only
+  behaviour even with a token configured.
+
+---
+
 ## 2026-04-23 · Route-level CSRF smoke (`e2e-tests/csrf-smoke.spec.ts`)
 
 Same branch. Closes the "Route-level CSRF Playwright smoke" item

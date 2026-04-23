@@ -73,4 +73,13 @@ describe('app/api/cron/audit-auth-weekly · runCron + runAuditAuth', () => {
     const body = await res.json()
     expect(body.id).toBe('a002')
   })
+
+  it('includes an empty `issues` array when the audit is clean', async () => {
+    process.env.CRON_SECRET = 'cron-bearer'
+    const res = await GET(mkReq('Bearer cron-bearer'))
+    const body = await res.json()
+    // A-002 is clean on this branch, so no violations → no opener calls.
+    expect(Array.isArray(body.issues)).toBe(true)
+    expect(body.issues).toHaveLength(0)
+  })
 })

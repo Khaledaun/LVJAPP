@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { runCron } from '@/lib/cron'
 import { runAuditAuth } from '@/lib/audits/auth'
+import { openAuditIssue, type IssueOpenerResult } from '@/lib/audits/issue-opener'
 
 // Vercel Cron schedule: Mon 03:00 UTC (vercel.json · `0 3 * * 0`).
 // Guarded by CRON_SECRET bearer via runCron; stays off the A-002
@@ -13,9 +14,11 @@ import { runAuditAuth } from '@/lib/audits/auth'
 // is deterministic on the same deploy; the response body is what a
 // downstream issue-opener consumes.
 //
-// TODO: when GITHUB_TOKEN is wired, dispatch('cron.audit.a002', …)
-// so a subscriber opens one issue per violation. For now the
-// correlationId on the response is the trail.
+// Each UNAUTHED route opens (or re-surfaces, if already tracked) a
+// dedicated `[a002] UNAUTHED route: …` GitHub issue via
+// `lib/audits/issue-opener.ts`. Without `GITHUB_TOKEN` set, the
+// opener logs `[issue-opener] would open: …` and returns — safe to
+// deploy with the flag unset.
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -25,6 +28,30 @@ export async function GET(req: Request) {
   return runCron(req, async ({ correlationId, path }) => {
     const result = runAuditAuth()
     const ok = result.unauthed.length === 0
+
+    const issues: IssueOpenerResult[] = []
+    for (const row of result.unauthed) {
+      const res = await openAuditIssue({
+        auditId: 'a002',
+        title: `[a002] UNAUTHED route: ${row.path}`,
+        body: [
+          '**Finding.** `' + row.path + '` classifies as UNAUTHED per `scripts/audit-auth.ts`.',
+          '',
+          `**Methods:** ${row.methods.join(', ') || '(none)'}`,
+          `**Reason:** ${row.reason}`,
+          '',
+          'Guard the handler with one of:',
+          '- `runAuthed(kind, handler)` (preferred — composes tenant scope)',
+          '- `guardStaff()` / `guardCaseAccess(id)` / `guardOrgAccess(id)` / `guardAuthed()`',
+          '',
+          'Sev-1 per `docs/EXECUTION_PLAN.md` §4.1. Re-run the cron after merging the fix; this issue auto-closes nothing — a human confirms.',
+        ].join('\n'),
+        extraLabels: ['sev-1', 'audit-a002'],
+        correlationId,
+      })
+      issues.push(res)
+    }
+
     const summary = {
       id: 'a002',
       path,
@@ -42,9 +69,11 @@ export async function GET(req: Request) {
         methods: r.methods,
         reason: r.reason,
       })),
+      issues,
     }
     console.log(
-      `[cron.audit.a002] ${ok ? 'ok' : 'FAIL'} correlationId=${correlationId} unauthed=${result.unauthed.length}`,
+      `[cron.audit.a002] ${ok ? 'ok' : 'FAIL'} correlationId=${correlationId} ` +
+        `unauthed=${result.unauthed.length} issuesOpened=${issues.filter((i) => i.opened).length}`,
     )
     return NextResponse.json(summary)
   })
