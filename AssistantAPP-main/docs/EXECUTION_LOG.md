@@ -1468,6 +1468,47 @@ one obvious place.
 
 ---
 
+## 2026-04-23 · Migrate 14 LEGACY SKILL.md files to v0.1 frontmatter
+
+Same branch. The A-011 audit shipped earlier on this branch
+flagged 14 domain-root `SKILL.md` files as LEGACY because their
+frontmatter uses the pre-v0.1 schema (`domain:` + `review_ttl:
+<date>` + `motivated_by: [...]`) rather than the v0.1 shape (`id:`
++ `reviewed_at:` + `review_ttl_days:`). Non-destructive migration:
+add the three missing v0.1 fields to each, preserve everything
+else.
+
+**Per file, inserted after `confidence: draft`:**
+
+```
+id: <domain>.skill.root
+reviewed_at: 2026-04-22
+review_ttl_days: 90
+```
+
+`2026-04-22` matches the date used by the core v0.1 articles
+(same `Claude.md` rebaseline window). `90` days is the implied
+TTL from the existing `review_ttl: 2026-07-22` + the rebaseline
+date — no semantic drift.
+
+**Files migrated (14):** `availability`, `cost-guard`,
+`escalation`, `i18n-rtl`, `marketing-automation`,
+`marketplace-attribution`, `multi-tenancy`, `onboarding`,
+`portugal-immigration`, `provider-directory`, `seo-aeo-geo`,
+`service-provider-pool`, `uae-immigration`, `webflow`.
+
+**After the migration.** A-011 scans 30 articles under `skills/`:
+30 FRESH / 0 STALE / 0 EXPIRED / 0 INVALID / 0 LEGACY. The
+pre-v0.1 fields (`domain:`, `review_ttl:`, `motivated_by:`)
+remain in place for context; the audit simply has the v0.1
+fields it needs to classify now.
+
+**Body unchanged.** Every file's Markdown body is byte-identical
+to the pre-migration version. Only the YAML frontmatter grew by
+three lines per file.
+
+---
+
 ## 2026-04-23 · First 4 cron handlers — `/api/cron/audit-*`
 
 Same branch. Wires the first 4 of the 11 cron slots declared in

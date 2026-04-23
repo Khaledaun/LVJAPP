@@ -3,6 +3,9 @@ domain: seo-aeo-geo
 owner: platform-marketing
 jurisdiction: EU-PT primary; UAE secondary
 confidence: draft
+id: seo-aeo-geo.skill.root
+reviewed_at: 2026-04-22
+review_ttl_days: 90
 review_ttl: 2026-07-22
 motivated_by:
   - PRD v0.3 §1.3 "Why now" (GEO / AEO land-grab)

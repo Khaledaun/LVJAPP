@@ -3,6 +3,9 @@ domain: portugal-immigration
 owner: tenant-counsel-pt
 jurisdiction: PT
 confidence: draft
+id: portugal-immigration.skill.root
+reviewed_at: 2026-04-22
+review_ttl_days: 90
 review_ttl: 2026-07-22
 motivated_by:
   - PRD v0.3 §1.1 Market problem

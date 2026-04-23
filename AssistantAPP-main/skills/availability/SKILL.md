@@ -3,6 +3,9 @@ domain: availability
 owner: platform-engineering
 jurisdiction: n/a
 confidence: draft
+id: availability.skill.root
+reviewed_at: 2026-04-22
+review_ttl_days: 90
 review_ttl: 2026-07-22
 motivated_by:
   - Decision D-014 Quiet hours = per-provider availability

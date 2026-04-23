@@ -3,6 +3,9 @@ domain: cost-guard
 owner: platform-engineering
 jurisdiction: n/a
 confidence: draft
+id: cost-guard.skill.root
+reviewed_at: 2026-04-22
+review_ttl_days: 90
 review_ttl: 2026-07-22
 motivated_by:
   - Decision D-012 LLM cost caps

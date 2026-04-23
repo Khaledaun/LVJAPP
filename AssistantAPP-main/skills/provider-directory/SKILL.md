@@ -3,6 +3,9 @@ domain: provider-directory
 owner: platform-marketing
 jurisdiction: n/a
 confidence: draft
+id: provider-directory.skill.root
+reviewed_at: 2026-04-22
+review_ttl_days: 90
 review_ttl: 2026-07-22
 motivated_by:
   - Decision D-017 Public Service Provider Directory in v1

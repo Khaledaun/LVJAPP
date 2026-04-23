@@ -3,6 +3,9 @@ domain: i18n-rtl
 owner: platform-engineering
 jurisdiction: n/a
 confidence: draft
+id: i18n-rtl.skill.root
+reviewed_at: 2026-04-22
+review_ttl_days: 90
 review_ttl: 2026-07-22
 motivated_by:
   - Decision D-015 Arabic is first-class for v1
