@@ -1,6 +1,6 @@
 # LVJ Execution Plan — Master Orchestration Contract
 
-*Version 1.1 — April 2026 · Owner: Khaled Aun (founder) · Maintainer: Claude Code*
+*Version 1.2 — April 2026 · Owner: Khaled Aun (founder) · Maintainer: Claude Code*
 *Companion to `Claude.md` v4.0 · `docs/PRD.md` v0.3 · `docs/AGENT_OS.md` v0.1 · `docs/DECISIONS.md` · `docs/EXECUTION_LOG.md` · `docs/BUGS.md`*
 
 > **Purpose.** This document is the *operational* spine of the build. It
@@ -135,12 +135,13 @@ different cadence with a different owner.
 | A-002 | Auth-on-every-route audit      | Per PR + weekly cron     | Eng + CI         | `docs/BUGS.md` entries (severity Sev-1/2)   | Merge to `main`         |
 | A-003 | Tenant-isolation audit         | Per PR touching Prisma + nightly cron | Eng + CI | `BUGS.md` (Sev-1) + `AuditLog` row     | Merge + deploy          |
 | A-004 | Jurisdiction audit (D-006)     | Per PR + weekly cron     | Eng + CI         | `BUGS.md` (Sev-3) until cleared             | None — informational    |
-| A-005 | KB freshness audit             | Weekly cron              | Skill owner      | GitHub issue per stale article              | None — opens issues     |
+| A-005 | Dynamic-route audit (D-025 §4) | Per PR                   | Eng + CI (`scripts/audit-dynamic.ts`) | Block merge on any DB-reading route missing `force-dynamic` / `revalidate = 0` | Merge to `main` |
 | A-006 | Cost-guard audit               | Daily cron (UTC midnight)| Cost Guard svc   | `AutomationLog` aggregate + Slack/email     | Pauses non-critical agents |
 | A-007 | Guardrail incident audit       | Per LLM output (online)  | `lib/agents/guardrails.ts` | `BUGS.md` if pattern-classified bug | Pauses agent if rate >5%  |
 | A-008 | Dependency / CVE audit         | Weekly cron              | Eng + CI         | `BUGS.md` (Sev-2 if exploitable)            | Merge if Sev-1 CVE      |
 | A-009 | Secret-scanning audit          | Per push                 | GitHub secret-scan + `mcp__github__run_secret_scanning` | `BUGS.md` (Sev-1 always) | Push      |
 | A-010 | Doc-discipline audit           | Per PR (CI)              | `scripts/lint-docs.ts` (TBD) | PR comment, fail check                  | Merge                   |
+| A-011 | KB freshness audit             | Weekly cron              | Skill owner      | GitHub issue per stale article              | None — opens issues     |
 
 ### 2.2 Audit runbooks
 
@@ -166,6 +167,7 @@ Every PR opened against `main` must satisfy, before merge:
 - [ ] **A-002** — `scripts/audit-auth.ts` exits 0 (no new route lacks `assertCaseAccess` / `assertOrgAccess` / `assertTenantAccess`).
 - [ ] **A-003** — `scripts/audit-tenant.ts` exits 0 (no new business model lacks `tenantId` FK; no query bypasses tenant middleware without `crossTenant: true`).
 - [ ] **A-004** — `scripts/audit-jurisdiction.ts` reports zero new occurrences of `USCIS|RFE|EB5|H1B|N400|IOLTA|DS-160|ABA Model Rule 1\.6` outside legacy comment blocks.
+- [ ] **A-005** — `scripts/audit-dynamic.ts` exits 0 (every DB-reading `route.ts(x)` / `page.tsx` declares `dynamic = 'force-dynamic'` + `revalidate = 0`, per D-025 §4).
 - [ ] **A-008** — `npm audit --omit=dev` exits 0 or all findings are documented in `BUGS.md` with planned fix dates.
 - [ ] **A-010** — `EXECUTION_LOG.md` has a new section for the head commit; if the PR changes a long-lived contract (`Claude.md`, `AGENT_OS.md`, manifest schema, RBAC model, Prisma schema) the affected doc has a bumped version header.
 
@@ -180,7 +182,7 @@ ticks the boxes in the PR description.
 | `cron/audit-auth-weekly`            | A-002 | Sun 03:00 UTC       | Open GitHub issue · page Tenant Admin              |
 | `cron/audit-tenant-nightly`         | A-003 | Daily 03:15 UTC     | Open GitHub issue · page Platform Admin (Sev-1)    |
 | `cron/audit-jurisdiction-weekly`    | A-004 | Sun 03:30 UTC       | Open GitHub issue (Sev-3, informational)           |
-| `cron/audit-kb-staleness-weekly`    | A-005 | Mon 03:00 UTC       | Per-article issue assigned to skill owner          |
+| `cron/audit-kb-staleness-weekly`    | A-011 | Mon 03:00 UTC       | Per-article issue assigned to skill owner          |
 | `cron/audit-cost-daily`             | A-006 | Daily 00:05 UTC     | Pause non-critical agents · email Platform Admin   |
 | `cron/audit-deps-weekly`            | A-008 | Sun 04:00 UTC       | PR auto-opened with `npm audit fix` if safe        |
 | `cron/audit-doc-discipline-weekly`  | A-010 | Sun 04:30 UTC       | Issue listing PRs that landed without log entries  |
@@ -446,7 +448,7 @@ front-matter (already in `docs/AGENT_OS.md` §6.2). Maturity levels:
 Demotion is automatic: any article past `2× review_ttl_days` without
 a refreshed `reviewed_at` flips from `authoritative` → `draft` per
 `docs/AGENT_OS.md` §6.4. `BUGS.md` does *not* log this — the
-staleness sweep opens a per-article issue (A-005).
+staleness sweep opens a per-article issue (A-011).
 
 ### 5.5 Decision capture rule (D-005, restated operationally)
 

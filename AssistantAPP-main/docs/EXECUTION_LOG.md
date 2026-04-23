@@ -1468,6 +1468,38 @@ one obvious place.
 
 ---
 
+## 2026-04-23 · D-026 · Audit numbering reconciliation
+
+Same branch. `EXECUTION_PLAN.md` §2.1 had `A-005 = KB freshness
+audit` (a weekly cron, not yet built). D-025 item 4 later
+introduced `A-005 = dynamic-route audit` without renumbering the
+KB row, so both coexisted after D-025 landed. The dynamic-route
+A-005 is now everywhere in code / CI / preflight / logs; the KB
+one is only in prose. D-026 renumbers the KB audit to `A-011`,
+freezes `A-005` on dynamic-route, and bumps the plan header 1.1
+→ 1.2 per A-010 R2.
+
+**Files touched.**
+
+- `docs/EXECUTION_PLAN.md` — version bump 1.1 → 1.2. §2.1
+  audit catalogue: `A-005` row rewritten for the dynamic-route
+  audit with "Block merge to `main`" status (matching CI); new
+  `A-011` row for KB freshness. §2.4 per-PR gate checklist: new
+  A-005 bullet. §2.5 cron table: KB-staleness weekly cron
+  relabelled `A-011`. §5.4 paragraph: `(A-005)` → `(A-011)`.
+- `docs/DECISIONS.md` — `D-026` added with the reconciliation
+  rationale (path-of-least-churn: renumber the unshipped KB
+  audit, keep A-005 on the one that already shipped).
+- `docs/EXECUTION_LOG.md` — this entry.
+
+**Historical log entries.** Lines 706 and 1047 (pre-D-026) still
+read `A-005` for the staleness sweep and the dynamic-route audit
+respectively. Log is append-only by convention; readers parse
+those as pre-reconciliation. All *new* references from 2026-04-23
+forward use the post-D-026 numbering.
+
+---
+
 ## 2026-04-23 · Rate-limit middleware rollout — flag-gated (off → report-only → enforce)
 
 Same branch. Parallel to the CSRF rollout — `applyRateLimit`
