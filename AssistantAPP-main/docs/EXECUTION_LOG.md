@@ -1418,6 +1418,43 @@ before hard-failing real users.
 
 ---
 
+## 2026-04-23 · Rate-limit middleware rollout — flag-gated (off → report-only → enforce)
+
+Same branch. Parallel to the CSRF rollout — `applyRateLimit`
+wires into `middleware.ts` after CSRF, defaults to
+`RATE_LIMIT_MODE=off`. Skip list covers `/api/auth/*`,
+`/api/webhooks/*`, `/api/cron/*`, and `/api/health` (uptime
+probes must never get a 429).
+
+**Files touched.**
+
+- `lib/rate-limit.ts` — added `rateLimitMode()`,
+  `applyRateLimit(req, opts?)`, per-(method, path, key) bucketing
+  with the default 120 requests / 60 s window, 429
+  `Retry-After`-bearing response in enforce mode, structured
+  `[rate-limit] report-only: …` warn in report-only mode.
+- `middleware.ts` — API branch now chains `applyCsrf` →
+  `applyRateLimit` before falling through to `NextResponse.next()`.
+  Non-API paths untouched.
+- `__tests__/lib-rate-limit.test.ts` — 8 new cases covering mode
+  parsing, off no-op, enforce 429 at 121st call, report-only
+  warn-without-block, skip paths (cron / auth / webhooks /
+  health), non-API path bypass, per-path bucketing, and
+  `SKIP_AUTH=1` dev bypass.
+- `docs/EXECUTION_LOG.md` — this entry.
+
+**Why prod enforce is deferred.**
+
+The Map-backed counter is correct only within a single server
+instance. Vercel Edge runs across multiple instances, so a
+caller flooding `/api/x` against instance A won't increment
+instance B's counter. For staging and for single-region
+deployments it's enough; for prod, the Upstash backend is the
+real ceiling. Keep `report-only` in prod until Upstash lands,
+then flip to `enforce`.
+
+---
+
 ## Rolling open items
 
 Copied from the commits above; delete lines here as they land.
@@ -1426,8 +1463,9 @@ Copied from the commits above; delete lines here as they land.
 - [x] ~~Post-Sprint-0.7 cleanup PR — A-005 dynamic-route audit, preflight, runCron, CSRF + rate-limit scaffolding (all landed 2026-04-23).~~
 - [x] ~~Wire `assertCsrf` into the global middleware matcher~~ (landed 2026-04-23, `CSRF_MODE=off` default; flip to `report-only` in staging, then `enforce` once logs are clean).
 - [ ] Flip `CSRF_MODE` from `off` → `report-only` on staging, then `enforce` after a clean log window.
-- [ ] Ship Upstash backend for `checkRateLimit` alongside the Upstash env vars + prod smoke.
-- [ ] Wire rate-limit into `middleware.ts` with `RATE_LIMIT_MODE` (off | report-only | enforce), same staged rollout pattern.
+- [ ] Ship Upstash backend for `checkRateLimit` alongside the Upstash env vars + prod smoke. Until it lands, `RATE_LIMIT_MODE=enforce` in prod is best-effort only (in-memory Map doesn't share across Edge instances).
+- [x] ~~Wire rate-limit into `middleware.ts` with `RATE_LIMIT_MODE` (off | report-only | enforce)~~ (landed 2026-04-23, default `off`). Same staging flip as CSRF.
+- [ ] Flip `RATE_LIMIT_MODE` from `off` → `report-only` on staging once CSRF enforce is green, then `enforce` after the Upstash backend lands.
 - [ ] Bootstrap the Orchestrator from a server entry point: `import '@/lib/agents/register'; subscribeAgent('intake'); subscribeAgent('drafting'); subscribeAgent('email');` — ideally from a `/api/agents/bootstrap` stub that runs on cold start, gated by feature flags.
 - [ ] Flesh out the KB v0.1 articles (`core/disclaimers/upl.md`, `core/disclaimers/outcome.md`, `core/tone/*.md`, `core/escalation/matrix.md`, `core/privacy/consent.md`, `core/privacy/retention.md`, `core/languages.md`).
 - [ ] Execute the jest suite in an environment with `node_modules` installed — none of the tests have been executed in this sandbox.

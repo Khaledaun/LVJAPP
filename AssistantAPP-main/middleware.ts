@@ -2,6 +2,7 @@ import { withAuth } from 'next-auth/middleware'
 import { NextResponse, type NextRequest, type NextMiddleware } from 'next/server'
 import { LOCALE_COOKIE, resolveLocale } from '@/lib/i18n'
 import { applyCsrf } from '@/lib/csrf'
+import { applyRateLimit } from '@/lib/rate-limit'
 
 const SKIP =
   process.env.SKIP_AUTH === '1' ||
@@ -49,8 +50,10 @@ export default async function middleware(req: NextRequest, ev: any) {
   // `/api/*` — API routes return 401 JSON themselves through
   // `runAuthed`; redirecting to `/signin` would break clients.
   if (pathname.startsWith('/api/')) {
-    const blocked = applyCsrf(req)
-    if (blocked) return blocked
+    const csrfBlocked = applyCsrf(req)
+    if (csrfBlocked) return csrfBlocked
+    const rlBlocked = applyRateLimit(req)
+    if (rlBlocked) return rlBlocked
     return NextResponse.next()
   }
 
