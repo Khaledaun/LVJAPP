@@ -1,8 +1,8 @@
 /**
  * @jest-environment node
  */
-import { describe, it, expect, beforeEach, afterEach } from '@jest/globals'
-import { assertCsrf, classifyCsrf } from '@/lib/csrf'
+import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals'
+import { assertCsrf, classifyCsrf, applyCsrf, csrfMode } from '@/lib/csrf'
 
 function mkReq(opts: {
   method?: string
@@ -116,5 +116,70 @@ describe('lib/csrf · assertCsrf / classifyCsrf', () => {
     const req = mkReq({ url: 'http://internal:3000/api/cases', origin: 'https://lvj.app' })
     expect(classifyCsrf(req)).toBe('fail_origin_mismatch')
     expect(classifyCsrf(req, { expectedOrigin: 'https://lvj.app' })).toBe('ok')
+  })
+})
+
+describe('lib/csrf · csrfMode + applyCsrf (middleware entry)', () => {
+  const origEnv = { ...process.env }
+  let warnSpy: ReturnType<typeof jest.spyOn>
+  beforeEach(() => {
+    delete process.env.SKIP_AUTH
+    delete process.env.SKIP_DB
+    delete process.env.CSRF_MODE
+    process.env.NODE_ENV = 'production'
+    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+  afterEach(() => {
+    process.env = { ...origEnv }
+    warnSpy.mockRestore()
+  })
+
+  it('csrfMode defaults to `off`', () => {
+    expect(csrfMode()).toBe('off')
+  })
+
+  it('csrfMode reads `enforce` / `report-only` / `report_only` / `report`', () => {
+    process.env.CSRF_MODE = 'enforce'
+    expect(csrfMode()).toBe('enforce')
+    process.env.CSRF_MODE = 'report-only'
+    expect(csrfMode()).toBe('report-only')
+    process.env.CSRF_MODE = 'report_only'
+    expect(csrfMode()).toBe('report-only')
+    process.env.CSRF_MODE = 'report'
+    expect(csrfMode()).toBe('report-only')
+    process.env.CSRF_MODE = 'nonsense'
+    expect(csrfMode()).toBe('off')
+  })
+
+  it('applyCsrf returns null when mode=off, even for a failing request', () => {
+    const req = mkReq({ origin: 'https://evil.example.com' })
+    expect(applyCsrf(req)).toBeNull()
+  })
+
+  it('applyCsrf warns but does not block in report-only mode', () => {
+    process.env.CSRF_MODE = 'report-only'
+    const req = mkReq({ origin: 'https://evil.example.com' })
+    expect(applyCsrf(req)).toBeNull()
+    expect(warnSpy).toHaveBeenCalledTimes(1)
+    const msg = String(warnSpy.mock.calls[0][0])
+    expect(msg).toContain('[csrf] report-only')
+    expect(msg).toContain('fail_origin_mismatch')
+  })
+
+  it('applyCsrf returns a 403 Response in enforce mode', async () => {
+    process.env.CSRF_MODE = 'enforce'
+    const req = mkReq({ origin: 'https://evil.example.com' })
+    const res = applyCsrf(req)
+    expect(res).not.toBeNull()
+    expect(res!.status).toBe(403)
+    const body = await res!.json()
+    expect(body.error).toBe('csrf_origin_mismatch')
+  })
+
+  it('applyCsrf lets same-origin through in enforce mode without warning', () => {
+    process.env.CSRF_MODE = 'enforce'
+    const req = mkReq({ origin: 'https://lvj.app' })
+    expect(applyCsrf(req)).toBeNull()
+    expect(warnSpy).not.toHaveBeenCalled()
   })
 })

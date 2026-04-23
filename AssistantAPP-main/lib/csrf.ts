@@ -108,14 +108,16 @@ function forbidden(reason: string): Response {
  * Returns the classification so tests can assert on the specific reason
  * without brittle status-code parsing.
  */
-export function classifyCsrf(req: Request, opts: CsrfOptions = {}):
+export type CsrfVerdict =
   | 'ok'
   | 'skip_safe_method'
   | 'skip_path'
   | 'skip_dev'
   | 'fail_no_origin'
   | 'fail_origin_mismatch'
-  | 'fail_referer_mismatch' {
+  | 'fail_referer_mismatch'
+
+export function classifyCsrf(req: Request, opts: CsrfOptions = {}): CsrfVerdict {
   if (shouldSkipAuth()) return 'skip_dev'
   const method = req.method.toUpperCase()
   if (SAFE_METHODS.has(method)) return 'skip_safe_method'
@@ -128,4 +130,51 @@ export function classifyCsrf(req: Request, opts: CsrfOptions = {}):
   if (origin && origin !== expected) return 'fail_origin_mismatch'
   if (!origin && referer && referer !== expected) return 'fail_referer_mismatch'
   return 'ok'
+}
+
+// ─────────────────────────────────────────────────────────────
+// Middleware-facing dispatcher.
+//
+// `CSRF_MODE` env var drives rollout:
+//   - `off` (default) — no-op. Every route passes through.
+//   - `report-only`   — classify, console.warn on failures, let
+//                       the request through anyway. Safe default
+//                       for the first week while we confirm every
+//                       browser client actually sends `Origin`.
+//   - `enforce`       — classify, and on failure return a 403
+//                       NextResponse.
+//
+// Moving the value from `off → report-only → enforce` is the
+// intended staged rollout. Flip once log analysis shows no
+// false-positive blocks.
+// ─────────────────────────────────────────────────────────────
+
+export type CsrfMode = 'off' | 'report-only' | 'enforce'
+
+export function csrfMode(): CsrfMode {
+  const raw = (process.env.CSRF_MODE ?? '').toLowerCase().replace('_', '-')
+  if (raw === 'enforce') return 'enforce'
+  if (raw === 'report-only' || raw === 'report') return 'report-only'
+  return 'off'
+}
+
+/**
+ * Entry point used by `middleware.ts`. Returns a `Response` to short-
+ * circuit the request when CSRF_MODE=enforce and the check fails,
+ * otherwise `null` (the request continues).
+ */
+export function applyCsrf(req: Request, opts: CsrfOptions = {}): Response | null {
+  const mode = csrfMode()
+  if (mode === 'off') return null
+  const verdict = classifyCsrf(req, opts)
+  if (!verdict.startsWith('fail_')) return null
+  if (mode === 'report-only') {
+    const url = new URL(req.url)
+    console.warn(
+      `[csrf] report-only: would block ${req.method} ${url.pathname} · ${verdict} · origin=${req.headers.get('origin') ?? '-'} referer=${req.headers.get('referer') ?? '-'}`,
+    )
+    return null
+  }
+  // enforce
+  return assertCsrf(req, opts)
 }

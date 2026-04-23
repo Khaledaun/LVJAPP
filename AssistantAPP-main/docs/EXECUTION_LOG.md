@@ -1371,14 +1371,63 @@ an `/api/:path*` matcher.
 
 ---
 
+## 2026-04-23 · CSRF middleware rollout — flag-gated (off → report-only → enforce)
+
+Same branch. Wires `applyCsrf` into `middleware.ts` under a new
+`/api/:path*` matcher entry, but defaults to `CSRF_MODE=off` so
+behaviour is byte-identical until the flag flips. The
+`off → report-only → enforce` staircase mirrors the CSP rollout
+pattern in `docs/xrepo/khaledaunsite/04-security-and-compliance.md`
+("CSP report-only first, enforce after a week of clean reports"),
+and gives us one week in each staging tier to catch any browser
+client / curl invocation / internal tool that doesn't send Origin
+before hard-failing real users.
+
+**Files touched.**
+
+- `lib/csrf.ts` — added `csrfMode()` (reads `CSRF_MODE` env,
+  normalises `report_only` / `report-only` / `report` to
+  `report-only`, returns `off` otherwise) and `applyCsrf(req)` —
+  the middleware entry point. `off` is a no-op; `report-only`
+  logs a structured `[csrf] report-only: …` line with method /
+  path / verdict / origin / referer; `enforce` returns the 403
+  from `assertCsrf`. `CsrfVerdict` type extracted so callers can
+  switch on it.
+- `middleware.ts` — split the API and page surfaces. API paths
+  (`/api/*`) run `applyCsrf` only; `withAuth` is intentionally
+  NOT applied to `/api/*` because API routes return 401 JSON via
+  `runAuthed` and redirecting to `/signin` would break non-
+  browser clients. Page paths keep the existing withAuth +
+  locale-cookie flow. Matcher gains `'/api/:path*'`.
+- `__tests__/lib-csrf.test.ts` — 6 new cases covering
+  `csrfMode` parsing, `off` passthrough, `report-only` warn-
+  without-block, `enforce` 403, and same-origin passthrough in
+  enforce mode.
+- `docs/EXECUTION_LOG.md` — this entry. Rolling open item for
+  the CSRF middleware wiring closed; new item tracks the flag-
+  flip staircase.
+
+**Rollout plan (track in SESSION_NOTES when we start it).**
+
+1. Staging: set `CSRF_MODE=report-only`. Leave a week. Grep
+   Vercel logs for `[csrf] report-only` and fix any false
+   positives (legitimate clients not sending Origin).
+2. Staging: set `CSRF_MODE=enforce`. Re-run the Playwright smoke
+   suite and the manual QA matrix.
+3. Prod: set `CSRF_MODE=enforce`. Keep the staging flag as-is.
+
+---
+
 ## Rolling open items
 
 Copied from the commits above; delete lines here as they land.
 
 - [ ] Run `npx prisma migrate dev --name sprint0-foundation && npx prisma migrate dev --name aos-phase1 && npx prisma migrate dev --name add-tenancy` once a dev DB is reachable. Until then, Prisma client types will not reflect the new models and tests that touch DB are skipped via `SKIP_DB=1`.
 - [x] ~~Post-Sprint-0.7 cleanup PR — A-005 dynamic-route audit, preflight, runCron, CSRF + rate-limit scaffolding (all landed 2026-04-23).~~
-- [ ] Wire `assertCsrf` into every state-changing handler (or the global middleware matcher) once smoke specs are verified to carry `Origin`. Rollout is flag-gated — see post-0.7 cleanup log entry "What this commit does NOT do".
+- [x] ~~Wire `assertCsrf` into the global middleware matcher~~ (landed 2026-04-23, `CSRF_MODE=off` default; flip to `report-only` in staging, then `enforce` once logs are clean).
+- [ ] Flip `CSRF_MODE` from `off` → `report-only` on staging, then `enforce` after a clean log window.
 - [ ] Ship Upstash backend for `checkRateLimit` alongside the Upstash env vars + prod smoke.
+- [ ] Wire rate-limit into `middleware.ts` with `RATE_LIMIT_MODE` (off | report-only | enforce), same staged rollout pattern.
 - [ ] Bootstrap the Orchestrator from a server entry point: `import '@/lib/agents/register'; subscribeAgent('intake'); subscribeAgent('drafting'); subscribeAgent('email');` — ideally from a `/api/agents/bootstrap` stub that runs on cold start, gated by feature flags.
 - [ ] Flesh out the KB v0.1 articles (`core/disclaimers/upl.md`, `core/disclaimers/outcome.md`, `core/tone/*.md`, `core/escalation/matrix.md`, `core/privacy/consent.md`, `core/privacy/retention.md`, `core/languages.md`).
 - [ ] Execute the jest suite in an environment with `node_modules` installed — none of the tests have been executed in this sandbox.
