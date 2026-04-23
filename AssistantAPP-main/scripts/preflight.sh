@@ -130,6 +130,12 @@ check_env_file() {
 }
 run_required '.env.local parseable or SKIP_* set' check_env_file
 
+# 2b. Typed env validator — catches missing secrets in prod before
+#     Vercel does. Dev runs with only warnings; preflight treats
+#     errors as required failures.
+run_env_check() { npm run -s env:check; }
+run_required 'env validator (lib/env-validate)' run_env_check
+
 # 3. Install.
 install_deps() {
   if [[ "$FLAG_SKIP_INSTALL" -eq 1 ]]; then

@@ -30,6 +30,8 @@
     "audit:kb": "tsx scripts/audit-kb-staleness.ts",
     "audit:kb:json": "tsx scripts/audit-kb-staleness.ts --json",
     "audit:kb:strict": "tsx scripts/audit-kb-staleness.ts --strict",
+    "env:check": "tsx scripts/check-env.ts",
+    "env:check:json": "tsx scripts/check-env.ts --json",
     "audit:docs": "tsx scripts/lint-docs.ts",
     "audit:docs:json": "tsx scripts/lint-docs.ts --json",
     "audit:prisma": "tsx scripts/audit-prisma.ts",

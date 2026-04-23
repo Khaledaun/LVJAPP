@@ -1468,6 +1468,51 @@ one obvious place.
 
 ---
 
+## 2026-04-23 · Env validator — `lib/env-validate.ts` + `npm run env:check`
+
+Same branch. Fail-fast-at-the-right-layer for the ops flags
+scattered across the codebase (CRON_SECRET, CSRF_MODE,
+RATE_LIMIT_MODE, GITHUB_TOKEN, etc.). No code mutations — just
+a read-only report so operators can see, at deploy time,
+whether the env is ready for a given mode flip.
+
+**Files touched.**
+
+- `lib/env-validate.ts` (new) — `validateEnv(env?)` returns
+  `{ environment, findings, errors, warnings }`. 9 rules today:
+  `NEXTAUTH_SECRET` / `CRON_SECRET` (errors in prod); `NEXTAUTH_URL`,
+  `DATABASE_URL`, `DIRECT_URL`, `GITHUB_TOKEN`, `GITHUB_REPOSITORY`,
+  plus mode-dependent rules for `CSRF_MODE=enforce` without
+  `NEXT_PUBLIC_APP_URL` and `RATE_LIMIT_MODE=enforce` without
+  Upstash. Dev / test / preview downgrade every rule to a warning
+  so `SKIP_DB=1` / `SKIP_AUTH=1` loops stay quiet. Environment
+  detection prefers `VERCEL_ENV` over `NODE_ENV`.
+- `scripts/check-env.ts` (new) — CLI wrapper. `--json` mode for
+  deploy-script consumers; exit 1 on any `error`, 0 otherwise.
+- `package.json` — `env:check` / `env:check:json` scripts.
+- `scripts/preflight.sh` — required block gains an "env validator"
+  step after the `.env.local` existence check. Dev preflight
+  (warnings only) passes; prod preflight without CRON_SECRET /
+  NEXTAUTH_SECRET fails as expected.
+- `__tests__/lib-env-validate.test.ts` (new) — 9 cases covering
+  production-error surfacing, dev downgrade, fully-configured
+  green path, CSRF mode combinations, rate-limit+Upstash
+  combinations, GITHUB_TOKEN rules, and the VERCEL_ENV-wins
+  detection.
+
+**What's intentionally NOT here.**
+
+- No module-load-time side effect. Importing `lib/env-validate`
+  returns the function; it doesn't run. Callers decide.
+- No `/api/status` route. Surfacing env warnings on an unauth'd
+  endpoint would leak configuration detail; when that route
+  lands it'll be staff-guarded via `runAuthed('staff', …)`.
+- No auto-fail on missing `UPSTASH_REDIS_REST_URL` — that's a
+  downgrade warning, not an error, until prod actually needs
+  cross-instance rate-limiting.
+
+---
+
 ## 2026-04-23 · A-010 doc-discipline weekly → GitHub Actions workflow
 
 Same pattern as A-008: `scripts/lint-docs.ts` needs a full git
