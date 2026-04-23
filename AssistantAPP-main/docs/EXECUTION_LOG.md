@@ -1468,6 +1468,30 @@ one obvious place.
 
 ---
 
+## 2026-04-23 · Tests for `/api/agents/bootstrap`
+
+Same branch. The earlier bootstrap commit shipped the route +
+idempotent `subscribeAgent` + 5 orchestrator-level tests, but no
+direct coverage of the route handler. Adds the missing layer.
+
+**File.**
+
+- `__tests__/api-agents-bootstrap.test.ts` (new) — 8 cases:
+  empty-flags default, single-flag bind, idempotent re-POST
+  reports `skippedAlreadyBound`, multi-flag bind, `'1' | 'true'
+  | 'yes'` case-insensitive parsing (and rejection of everything
+  else, including `'false'`), GET introspection doesn't mutate,
+  GET-after-POST reflects subscription, static assertion on
+  `dynamic = 'force-dynamic'` + `revalidate = 0` (A-005 guard
+  for the route).
+
+Uses `SKIP_AUTH=1` + `SKIP_DB=1` to short-circuit `runAuthed` at
+the unit level; a full e2e test would be a Playwright spec, but
+the route's logic is mostly in the flag-parser and the
+orchestrator mutation path, both exhaustively covered here.
+
+---
+
 ## 2026-04-23 · Refresh EXECUTION_PLAN §12 checklist to post-0.7 reality
 
 Same branch. §12.1 (tooling checklist) was out of date — it listed
