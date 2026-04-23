@@ -995,12 +995,104 @@ Branch: `claude/cross-repo-review-sprint-05-MT58G`.
 
 ---
 
+## 2026-04-23 · Cross-repo review (pass 2) — KhaledAunSite digest + D-025
+
+Branch: `claude/xrepo-review-pass2-sprint07-cMIF6`.
+
+The 2026-04-23 pass-1 review (PR #13, now merged) hit yalla-london
++ public KhaledAun.com and noted `khaledaunsite` as blocked by the
+MCP allowlist scope. Pass 2 was
+triggered by the user pushing a 7-file KhaledAunSite engineering
+digest (`01-architecture-and-stack.md` through
+`07-starter-checklist.md`) directly into `AssistantAPP-main/docs/`
+on main — an internal post-mortem playbook, not a live repo dump.
+This PR reviews those files against the same four axes from pass 1
+(RLS, Stripe Connect, CI shape, BUGS.md) and files the digest under
+a dedicated subdirectory.
+
+**Docs.**
+
+- `docs/xrepo/khaledaunsite/*` — the 7 digest files moved out of the
+  canonical docs root (`01-architecture-and-stack.md`,
+  `02-known-pitfalls-and-fixes.md` (renamed from the `(1)`-suffix
+  upload name), `03-operations-and-deployment.md`,
+  `04-security-and-compliance.md`, `05-ai-playbook.md`,
+  `06-skills-digest.md`, `07-starter-checklist.md`). They're
+  reference material, not part of LVJ's canonical playbook; filing
+  them separately keeps the canonical doc root unambiguous.
+- `docs/SESSION_NOTES.md` — new dated section "Cross-repo review
+  (pass 2) — KhaledAunSite digest". Summarizes findings per axis:
+  (1) RLS pattern in the digest is per-user `auth.uid()` with
+  `is_public` flag, single-tenant, so it does **not supersede
+  D-024** (multi-tenant `app.current_tenant()` via `SET LOCAL`
+  remains correct); two refinements graduated — RLS policy stubs
+  at table-creation time even pre-Supabase-connect, and explicit
+  tenant scoping on search/FTS paths. (2) Stripe Connect absent —
+  same finding as pass 1. (3) CI shape not cleaner than our
+  `gates + legacy-checks`; preflight-script pattern worth cribbing
+  post-Sprint-0.7. (4) 13 pitfalls mapped onto LVJ's Sprint 0.5+
+  surface in a table — items 2 and 4 (URL split + `@@map`) land
+  binding via D-025; items 1, 6–9 (`force-dynamic`, CSRF
+  exemption, XFF ordering, cron auth) captured for the post-0.7
+  cleanup PR. A §(5) section calls out what LVJ explicitly does
+  **not** adopt: monorepo split, Supabase-Auth-replacing-NextAuth,
+  Israeli-legal content, distinct 4-brain services.
+- `docs/DECISIONS.md` · **D-025** — Supabase-connect contract:
+  (1) `DATABASE_URL` on pooler `:6543?pgbouncer=true&connection_
+  limit=1` + `DIRECT_URL` on `:5432` for migrations;
+  (2) Prisma singleton preserved, CI lint rule post-0.5.1;
+  (3) `@@map` discipline for raw Supabase queries — audit sub-check
+  in `scripts/audit-prisma.ts` when the first raw query lands;
+  (4) `force-dynamic` on every DB-reading route and page — new
+  **A-005 (dynamic-route audit)** lands with the Supabase-connect
+  PR, required from day 1 because static pre-render + middleware
+  auth is a silent bypass; (5) case-insensitive email normalization
+  preserved from NextAuth default. D-025 and D-024 are
+  complementary — D-024 binds *policy shape*, D-025 binds
+  *connection + route shape*.
+- `docs/EXECUTION_LOG.md` — this entry.
+
+**No code changes.** Pass 2 is doc-only: digest triage, decision
+capture, and pattern cribs. Implementation items from D-025 land
+with the Supabase-connect PR (currently gated on infra availability
+per EXECUTION_PLAN §12.2) and with the post-Sprint-0.7 cleanup PR
+(A-005 audit script, `scripts/preflight.sh`, CSRF + XFF
+verification, `runCron(req, cb)` helper).
+
+**Merge ordering with PR #13.** PR #13 merged first; this PR was
+rebased onto the result. Resolved conflicts:
+- `DECISIONS.md` — D-024 (from #13) sits between D-023 and D-025.
+- `SESSION_NOTES.md` — pass-2 section above pass-1 section
+  (newest-first convention).
+- `EXECUTION_LOG.md` — pass-2 entry below the Sprint 0.5.1 entry
+  (chronological append).
+
+**Exit criteria.**
+
+- Cross-repo review pass 2 filed.
+- D-025 recorded; D-024 **not** superseded (explicit reasoning in
+  SESSION_NOTES §1).
+- Digest files filed under `docs/xrepo/khaledaunsite/` so they stop
+  polluting the canonical docs root.
+
+**Deferred.**
+
+- Sprint 0.7 — Playwright EN + AR visual regression baseline
+  (EXECUTION_PLAN §10.4 exit). Next PR.
+- Issue #11 safe half — zod v4 `z.record`, test-utils Session
+  shape, jest-mock `any → never`. Separate PR.
+- Post-0.7 cleanup — A-005 (dynamic-route audit),
+  `scripts/preflight.sh`, CSRF + XFF verification, `runCron(req,
+  cb)` helper. Separate PR.
+
+---
+
 ## Rolling open items
 
 Copied from the commits above; delete lines here as they land.
 
 - [ ] Run `npx prisma migrate dev --name sprint0-foundation && npx prisma migrate dev --name aos-phase1 && npx prisma migrate dev --name add-tenancy` once a dev DB is reachable. Until then, Prisma client types will not reflect the new models and tests that touch DB are skipped via `SKIP_DB=1`.
-- [ ] `khaledaun/khaledaunsite` — private and outside this session's MCP allowlist, so the cross-repo review landed on `yalla-london` + public `KhaledAun.com` only. A second-pass review of `khaledaunsite` should run when MCP scope refreshes or the repo is read-shareable, to confirm D-024 holds against its RLS policy file (if any).
+- [ ] Post-Sprint-0.7 cleanup PR — A-005 dynamic-route audit (D-025 item 4), `scripts/preflight.sh` (KhaledAunSite-digest crib), CSRF content-type-exemption verification, rightmost-XFF rate-limiter verification, `runCron(req, cb)` helper so `/api/cron/*` stops leaning on the A-002 public allow-list.
 - [ ] Bootstrap the Orchestrator from a server entry point: `import '@/lib/agents/register'; subscribeAgent('intake'); subscribeAgent('drafting'); subscribeAgent('email');` — ideally from a `/api/agents/bootstrap` stub that runs on cold start, gated by feature flags.
 - [ ] Flesh out the KB v0.1 articles (`core/disclaimers/upl.md`, `core/disclaimers/outcome.md`, `core/tone/*.md`, `core/escalation/matrix.md`, `core/privacy/consent.md`, `core/privacy/retention.md`, `core/languages.md`).
 - [ ] Execute the jest suite in an environment with `node_modules` installed — none of the tests have been executed in this sandbox.
