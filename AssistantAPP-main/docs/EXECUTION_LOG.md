@@ -1468,6 +1468,59 @@ one obvious place.
 
 ---
 
+## 2026-04-23 · A-011 KB freshness audit script
+
+Same branch, follow-up to D-026. Ships the audit that D-026 just
+renumbered from the pre-decision A-005 to A-011. Informational
+(not merge-blocking) per EXECUTION_PLAN §2.1; exit 0 unless
+invoked with `--strict`.
+
+**Files touched.**
+
+- `scripts/audit-kb-staleness.ts` — new. Walks `skills/`
+  recursively, parses YAML frontmatter, classifies each article
+  as FRESH / STALE / EXPIRED / INVALID / LEGACY. LEGACY is a
+  separate bucket for pre-v0.1 domain-root `SKILL.md` files
+  whose frontmatter uses `domain:` + `review_ttl: <date>`
+  instead of the v0.1 shape (`id:` + `reviewed_at:` +
+  `review_ttl_days:`); they're informational rather than
+  flagged as INVALID so they don't pollute the signal. Flags:
+  `--json`, `--strict`, `--now YYYY-MM-DD` (deterministic clock
+  override for tests + future cron handler).
+- `package.json` — `audit:kb` / `audit:kb:json` / `audit:kb:strict`
+  scripts alongside the other audits.
+- `.github/workflows/ci.yml` — new informational step in the
+  `gates` job, wired after A-004. Uses default (non-strict)
+  mode so stale KB articles don't block merges — they surface
+  in the step output.
+- `docs/EXECUTION_PLAN.md` §12.1 checklist — marked
+  `audit-dynamic.ts` (A-005), `audit-tenant.ts` (A-003), and
+  `audit-kb-staleness.ts` (A-011) as landed. Plan already at
+  version 1.2 from the D-026 commit, no further bump needed.
+
+**Snapshot of today's results** (run against `skills/` as of
+2026-04-23, with the core v0.1 articles all at `reviewed_at:
+2026-04-22`):
+
+```
+Scanned: 30 articles under skills/
+  FRESH:   16
+  STALE:    0
+  EXPIRED:  0
+  INVALID:  0
+  LEGACY:  14  (pre-v0.1 frontmatter; informational)
+OK — every article is fresh.
+```
+
+**When the weekly cron lands.** `cron/audit-kb-staleness-weekly`
+(Vercel cron, Mon 03:00 UTC per EXECUTION_PLAN §2.5) will call
+this script inside a `runCron`-guarded handler, pipe the JSON
+output to a GitHub-issue opener, and tag `@<owner>` on each
+per-article issue. The audit is cron-ready today — it exits 0
+for fresh KBs and the JSON schema is stable.
+
+---
+
 ## 2026-04-23 · D-026 · Audit numbering reconciliation
 
 Same branch. `EXECUTION_PLAN.md` §2.1 had `A-005 = KB freshness

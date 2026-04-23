@@ -1180,15 +1180,20 @@ direction.
 ### 12.1 Tooling gaps (Sprint 0.1 hard unblocks)
 
 - [x] **`scripts/audit-auth.ts`** — A-002 (Sprint 0.1).
-- [ ] **`scripts/audit-tenant.ts`** — A-003 script. Block Sprint 0.5
-      merge.
+- [x] **`scripts/audit-tenant.ts`** — A-003 (landed Sprint 0.5.1,
+      blocking).
 - [x] **`scripts/audit-jurisdiction.ts`** — A-004 (informational).
+- [x] **`scripts/audit-dynamic.ts`** — A-005 (D-025 §4; landed
+      post-0.7 cleanup, blocking).
 - [x] **`scripts/audit-prisma.ts`** — C-004 additive-only schema
       audit (model_removed, field_removed, type_narrowed,
       required_tightened, array_lost detectors).
 - [x] **`scripts/lint-docs.ts`** — A-010 (4 rules: source-diff →
       log, contract-doc version bump, log append-only, DECISIONS
       immutable body).
+- [x] **`scripts/audit-kb-staleness.ts`** — A-011 (informational).
+      Classifies each `skills/**/*.md` as FRESH / STALE / EXPIRED
+      / INVALID / LEGACY. Landed with D-026.
 - [ ] **`scripts/smoke/<id>.ts`** — S-001 … S-013 scaffolding;
       landed incrementally per sprint.
 - [x] **`scripts/pii-scrub.ts`** — centralised `scrubPii` +

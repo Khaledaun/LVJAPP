@@ -68,6 +68,9 @@ jobs:
       - name: A-004 · jurisdiction audit (informational)
         run: npm run audit:jurisdiction
 
+      - name: A-011 · KB freshness audit (informational)
+        run: npm run audit:kb
+
       - name: A-010 · doc-discipline audit
         run: npm run audit:docs -- --base origin/main --head HEAD
         if: github.event_name == 'pull_request'
