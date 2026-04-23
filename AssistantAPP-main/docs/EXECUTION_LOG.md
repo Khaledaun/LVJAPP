@@ -1468,6 +1468,40 @@ one obvious place.
 
 ---
 
+## 2026-04-23 · Wire A-011 kb-staleness cron to the issue-opener
+
+Same branch. The earlier issue-opener commit wired A-002 only —
+A-003 (too noisy as N issues), A-004 (informational, too noisy),
+and A-011 (needed owner map) stayed deferred. Today's A-011 KB
+audit is 30 FRESH / 0 bad, so wiring the opener has zero
+live impact — but the pattern is correct and future staleness
+will route through it automatically.
+
+**Files touched.**
+
+- `app/api/cron/audit-kb-staleness-weekly/route.ts` (changed) —
+  for every article with `status ∈ { STALE, EXPIRED, INVALID }`
+  call `openAuditIssue` with per-status title, body, and extra
+  labels (`audit-a011`, plus `stale|expired|invalid`). LEGACY
+  explicitly skipped (informational only; the pre-v0.1 SKILL.md
+  warning shouldn't ping owners weekly). Issues are listed on
+  the response summary.
+- `docs/EXECUTION_LOG.md` — this entry.
+
+**Why no assignees field.** Article frontmatter carries
+`owner: founding-engineer` — a role slug, not a GitHub handle.
+`openAuditIssue` accepts an `assignees` array but leaving it
+empty today is correct until a role → handle map lands (new
+rolling open item).
+
+**Bodies differ by status.** STALE nudges to bump `reviewed_at`
+(no demotion). EXPIRED reminds of the AGENT_OS §6.4 auto-
+demotion (`authoritative` → `draft`) and asks for the
+`confidence:` flip. INVALID asks for a YAML shape fix, pointing
+at `skills/core/disclaimers/upl.md` as the canonical example.
+
+---
+
 ## 2026-04-23 · `/api/status` staff-guarded introspection + `/api/health` 503-on-DB-down
 
 Same branch. Two complementary deploy-readiness endpoints.
@@ -2146,6 +2180,7 @@ Copied from the commits above; delete lines here as they land.
 - [x] ~~Wire `assertCsrf` into the global middleware matcher~~ (landed 2026-04-23, `CSRF_MODE=off` default; flip to `report-only` in staging, then `enforce` once logs are clean).
 - [ ] Flip `CSRF_MODE` from `off` → `report-only` on staging, then `enforce` after a clean log window.
 - [ ] Ship Upstash backend for `checkRateLimit` alongside the Upstash env vars + prod smoke. Until it lands, `RATE_LIMIT_MODE=enforce` in prod is best-effort only (in-memory Map doesn't share across Edge instances).
+- [ ] Capture an `owner → GitHub handle` map for skills/*.md frontmatter `owner:` values so the A-011 issue-opener can populate `assignees`. Today the role slugs (`founding-engineer`, `platform-marketing`, `tenant-counsel-pt`, `tenant-counsel-ae`, `platform-admin`, `platform-engineering`) aren't GitHub-addressable.
 - [x] ~~Wire rate-limit into `middleware.ts` with `RATE_LIMIT_MODE` (off | report-only | enforce)~~ (landed 2026-04-23, default `off`). Same staging flip as CSRF.
 - [ ] Flip `RATE_LIMIT_MODE` from `off` → `report-only` on staging once CSRF enforce is green, then `enforce` after the Upstash backend lands.
 - [x] ~~Bootstrap the Orchestrator from `/api/agents/bootstrap`~~ (landed 2026-04-23). Staff-guarded `POST` binds every `AGENT_*_ENABLED=1` agent via the now-idempotent `subscribeAgent`; `GET` is read-only introspection. Flags default OFF, so cold-start POST without flags set is a no-op.
