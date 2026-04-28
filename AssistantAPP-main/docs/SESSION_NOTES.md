@@ -7,6 +7,89 @@ landing in code should graduate into `DECISIONS.md` or
 
 ---
 
+## 2026-04-23 — Post-0.7 cleanup sprint (this branch)
+
+**Scope.** `claude/post-0.7-a-005-dynamic-audit-X4mBc` —
+originally the A-005 dynamic-route audit (D-025 §4), expanded
+into a full post-0.7 hardening sprint. 17+ commits; full listing
+in `docs/EXECUTION_LOG.md` under the 2026-04-23 entries.
+
+**What landed.**
+
+1. **A-005 dynamic-route audit** (D-025 §4) — `scripts/audit-
+   dynamic.ts` + `lib/audits/dynamic.ts`; 8 routes fixed; required
+   CI gate.
+2. **D-026 audit numbering reconciliation** — A-005 = dynamic-
+   route; A-011 = KB freshness (was `A-005` pre-reconciliation).
+   Plan bumped 1.1 → 1.2.
+3. **`runCron(req, cb)` helper** — `lib/cron.ts`; `CRON_SECRET`
+   bearer; added to A-002 `GUARD_PATTERNS`.
+4. **CSRF middleware** — `lib/csrf.ts` + `middleware.ts` wiring;
+   `CSRF_MODE=off|report-only|enforce` staircase; no content-type
+   exemption. 10 unit tests + 2-describe Playwright spec
+   (`e2e-tests/csrf-smoke.spec.ts`, auto-skip unless enforce).
+5. **Rate-limit middleware** — `lib/rate-limit.ts` +
+   `middleware.ts` wiring; `RATE_LIMIT_MODE` staircase; rightmost
+   XFF; 120 req / 60 s default; 11 unit tests.
+6. **4 cron audit handlers** — `/api/cron/audit-{auth-weekly,
+   tenant-nightly,jurisdiction-weekly,kb-staleness-weekly}/
+   route.ts`. Each imports from `lib/audits/` (library refactor),
+   returns JSON summary, always HTTP 200 + `ok: true|false`.
+7. **Cron issue-opener** — `lib/audits/issue-opener.ts`; fetch-
+   based GitHub REST with search-first dedupe under
+   `cron-audit,<auditId>` labels; log-only without
+   `GITHUB_TOKEN`. Wired into A-002 cron.
+8. **A-008 + A-010 GitHub Actions workflows** — `.github/
+   workflows/a008-deps.yml` and `a010-doc-discipline.yml`. Both
+   moved off Vercel cron (serverless lacks dev-deps + git diff).
+9. **`/api/agents/bootstrap`** — staff-guarded POST + idempotent
+   `orchestrator.subscribeAgent`. Flags default OFF.
+10. **Env validator** — `lib/env-validate.ts` +
+    `scripts/check-env.ts` + preflight integration. 9 rules;
+    dev downgrades to warnings.
+11. **A-011 KB freshness audit** — walks `skills/**/*.md`,
+    classifies FRESH / STALE / EXPIRED / INVALID / LEGACY. 14
+    pre-v0.1 `SKILL.md` domain roots migrated to v0.1 frontmatter.
+12. **`scripts/preflight.sh`** — local "allowed to deploy?"
+    driver; required block mirrors CI `gates`.
+13. **Audit library refactor** — `lib/audits/{auth,dynamic,
+    tenant,jurisdiction,kb-staleness}.ts`. Scripts reduced to
+    thin CLI wrappers.
+
+**Progress snapshot** (see "Progress" section below for derivation):
+
+- Engineering infrastructure / guardrails: **~85%** complete.
+- Product features wired to real data: **~25%** complete.
+- Integration layer (Stripe, Webflow, Twilio, ElevenLabs): **~15%**.
+- Agent OS runtime: **~50%**.
+- Production readiness: **~35%**.
+- **Weighted aggregate: ~45%** of the full roadmap.
+
+**Not on this branch (deliberately).**
+
+- Supabase connect (D-025 items 1–3, 5) — waits on the pooler +
+  direct URL provisioning.
+- Flag flips (`CSRF_MODE`, `RATE_LIMIT_MODE`,
+  `AGENT_*_ENABLED`) — operator action.
+- Upstash backend for `checkRateLimit` — waits on env vars.
+- Issue #11 risky half — separate branch.
+- KB article substantive review — needs PT-licensed lawyer per
+  D-024.
+
+**Next session priorities.**
+
+1. Review + merge this branch (or split into 2-3 PRs for tighter
+   review scope — the 17+ commits fall naturally into:
+   post-0.7 cleanup · cron handlers + issue-opener · GH Actions
+   + env validator).
+2. Flip `CSRF_MODE=report-only` on staging; grep Vercel logs for
+   `[csrf] report-only` warnings.
+3. Provision `CRON_SECRET` + `GITHUB_TOKEN` + `GITHUB_REPOSITORY`
+   on Vercel prod; run `npm run env:check` to verify.
+4. Kick off Supabase-connect PR (D-025 full checklist).
+
+---
+
 ## 2026-04-23 — Cross-repo review (pass 2) — KhaledAunSite digest
 
 **Scope.** The MCP allowlist for this session was again locked to

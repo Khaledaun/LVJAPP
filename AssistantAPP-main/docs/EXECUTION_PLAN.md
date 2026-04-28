@@ -142,6 +142,8 @@ different cadence with a different owner.
 | A-009 | Secret-scanning audit          | Per push                 | GitHub secret-scan + `mcp__github__run_secret_scanning` | `BUGS.md` (Sev-1 always) | Push      |
 | A-010 | Doc-discipline audit           | Per PR (CI)              | `scripts/lint-docs.ts` (TBD) | PR comment, fail check                  | Merge                   |
 | A-011 | KB freshness audit             | Weekly cron              | Skill owner      | GitHub issue per stale article              | None — opens issues     |
+| A-012 | `advice_class` gatekeeping     | Per PR                   | Eng + CI (`scripts/audit-advice-class.ts`) | Block merge on any `attorney_approved_advice` write unpaired with `assertCanSetAdviceClass` | Merge to `main` (PRD R1) |
+| A-013 | Audit-chain completeness       | Per PR (informational)   | Eng + CI (`scripts/audit-chain.ts`)        | List mutating routes missing `logAuditEvent` | Informational first; blocking when violations = 0 |
 
 ### 2.2 Audit runbooks
 
@@ -168,6 +170,8 @@ Every PR opened against `main` must satisfy, before merge:
 - [ ] **A-003** — `scripts/audit-tenant.ts` exits 0 (no new business model lacks `tenantId` FK; no query bypasses tenant middleware without `crossTenant: true`).
 - [ ] **A-004** — `scripts/audit-jurisdiction.ts` reports zero new occurrences of `USCIS|RFE|EB5|H1B|N400|IOLTA|DS-160|ABA Model Rule 1\.6` outside legacy comment blocks.
 - [ ] **A-005** — `scripts/audit-dynamic.ts` exits 0 (every DB-reading `route.ts(x)` / `page.tsx` declares `dynamic = 'force-dynamic'` + `revalidate = 0`, per D-025 §4).
+- [ ] **A-012** — `scripts/audit-advice-class.ts` exits 0 (every `attorney_approved_advice` write paired with `assertCanSetAdviceClass` / `guardAdviceClass` — PRD R1).
+- [ ] **A-013** — `scripts/audit-chain.ts` informational today; flip to blocking once `MISSING_AUDIT` count reaches 0.
 - [ ] **A-008** — `npm audit --omit=dev` exits 0 or all findings are documented in `BUGS.md` with planned fix dates.
 - [ ] **A-010** — `EXECUTION_LOG.md` has a new section for the head commit; if the PR changes a long-lived contract (`Claude.md`, `AGENT_OS.md`, manifest schema, RBAC model, Prisma schema) the affected doc has a bumped version header.
 
@@ -937,17 +941,27 @@ described with: goal, entry criteria, subagent recipe (from §6.5
 when relevant), deliverables, smoke battery, exit criteria, typical
 timeout risks.
 
-### 10.1 Current position (as of this file's creation)
+### 10.1 Current position (last updated 2026-04-23)
 
 - Merged: PR #7 (Sprint 0 foundation), PR #8 (Phase 0 audit), PR #9
   (Claude.md v4.0 rebaseline), PR #10 (execution-plan framework),
-  PR #12 (Sprint 0.5 — multi-tenancy foundation per D-023).
-- On branch `claude/cross-repo-review-sprint-05-MT58G`
-  (2026-04-23 session): cross-repo review of `yalla-london` +
-  `KhaledAun.com`, D-024, Sprint 0.5.1 runAuthed migration, A-003
-  flipped to blocking in the `gates` job.
-- Next sprint in D-019 order: **Sprint 0.7 — AR + RTL** (Playwright
-  EN + AR visual regression per §10.4 exit criteria).
+  PR #12 (Sprint 0.5 multi-tenancy), PR #13 (Sprint 0.5.1 runAuthed
+  + A-003 blocking), PR #14 (cross-repo review pass 2 + D-025),
+  PR #16 (Issue #11 safe half).
+- On branch `claude/post-0.7-a-005-dynamic-audit-X4mBc` (this PR):
+  Sprint 0.7.5 post-0.7 cleanup (see §10.4.1) — A-005 dynamic-route
+  audit, D-026 numbering reconciliation, runCron + CSRF + rate-limit
+  middleware, agent bootstrap, env validator, A-011 KB freshness,
+  4 audit cron handlers + issue-opener, A-008 + A-010 GitHub Actions
+  workflows, `/api/status` + `/api/health` 503-on-DB-down, preflight.
+- Next: review + merge (potentially split into 2-3 sub-PRs per
+  §12.5 #1), then operator flag flips (CSRF_MODE / RATE_LIMIT_MODE
+  staircase) and Supabase-connect PR (D-025 full checklist).
+- Roadmap status: foundation + post-0.7 cleanup ~85% done; product
+  features wired to live data ~25% done; integration layer ~15%
+  done. Aggregate ~47% of full roadmap. See `EXECUTION_LOG.md`
+  "Project documentation refresh + progress snapshot" for the
+  per-axis breakdown.
 
 ### 10.2 Sprint 0.1 — close 11 unauthed routes
 
@@ -1044,6 +1058,49 @@ timeout risks.
   5. Playwright smoke S-010 (EN + AR render, RTL applied).
 - **Smoke battery.** S-001, S-002, S-010 required green.
 - **Exit criteria.** Visual regression baseline recorded for EN + AR.
+
+### 10.4.1 Sprint 0.7.5 — post-0.7 cleanup (landed)
+
+- **Branch.** `claude/post-0.7-a-005-dynamic-audit-X4mBc`.
+- **Goal.** Close the post-0.7 deferred list (CSRF middleware,
+  rate-limit middleware, `runCron`, `/api/agents/bootstrap`,
+  preflight, D-026 numbering reconciliation) plus the scaffolding
+  that enables the first 4 audit cron handlers + the cron issue-
+  opener + the env validator + A-011.
+- **Entry criteria.** 0.7 merged; D-025 accepted.
+- **Deliverables.**
+  1. `scripts/audit-dynamic.ts` + `lib/audits/dynamic.ts` (A-005).
+  2. `lib/cron.ts` (`runCron(req, cb)` + `CRON_SECRET` bearer).
+  3. `lib/csrf.ts` + `middleware.ts` wiring (`CSRF_MODE` staircase,
+     no content-type exemption).
+  4. `lib/rate-limit.ts` + `middleware.ts` wiring (`RATE_LIMIT_MODE`
+     staircase, rightmost XFF).
+  5. `/api/agents/bootstrap/route.ts` + idempotent
+     `orchestrator.subscribeAgent`.
+  6. 4 cron audit handlers under `/api/cron/audit-*/route.ts`
+     (auth weekly, tenant nightly, jurisdiction weekly,
+     kb-staleness weekly).
+  7. `lib/audits/issue-opener.ts` — GitHub REST issue opener with
+     `cron-audit,<auditId>` dedupe.
+  8. `.github/workflows/a008-deps.yml` + `a010-doc-discipline.yml`
+     (audits that need full git + dep tree live in Actions, not
+     Vercel cron).
+  9. `lib/env-validate.ts` + `scripts/check-env.ts` +
+     `scripts/preflight.sh`.
+  10. A-011 `scripts/audit-kb-staleness.ts` +
+      `lib/audits/kb-staleness.ts` + 14 `SKILL.md` v0.1 migrations.
+  11. D-026 audit numbering reconciliation (plan 1.1 → 1.2).
+  12. `e2e-tests/csrf-smoke.spec.ts` (auto-skip unless enforce).
+- **Smoke battery.** S-003, S-009, S-010, S-013 (CSRF) — all
+  required green.
+- **Exit criteria.** Every audit gate green; A-002 31/5/0/0;
+  A-003 0 violations; A-005 0 violations; A-010 clean; A-011
+  30 FRESH. No UNAUTHED routes; no rewrites to any accepted
+  D-NNN body.
+- **Consequences.** CSRF_MODE / RATE_LIMIT_MODE / AGENT_* flags
+  all default OFF — deploy behaviour byte-identical until an
+  operator flips them. The flip runbook is in the branch's
+  EXECUTION_LOG entry "CSRF middleware rollout".
 
 ### 10.5 Sprint 8.5 — self-serve onboarding (incl. Stripe Connect Express)
 
@@ -1218,6 +1275,16 @@ direction.
 - [x] **`app/api/agents/bootstrap/route.ts`** — staff-guarded POST
       binds flag-enabled agents via idempotent
       `orchestrator.subscribeAgent`.
+- [x] **`app/api/status/route.ts`** — staff-guarded GET combining
+      `validateEnv()` + live CSRF/rate-limit mode + per-agent flag
+      and subscription state + git SHA. Deploy-readiness probe.
+- [x] **`app/api/health/route.ts`** — public; returns 503 on DB
+      down so uptime monitors key off the status code, not the JSON
+      field.
+- [x] **`lib/audits/issue-opener.ts`** — GitHub REST issue opener;
+      search-first dedupe under `cron-audit,<auditId>` labels;
+      log-only without `GITHUB_TOKEN`. Wired into A-002 + A-011 cron
+      handlers.
 - [x] **`lib/csrf.ts` + `lib/rate-limit.ts`** — CSRF (no
       content-type exemption, staircase via `CSRF_MODE`) + in-memory
       rate-limit (rightmost XFF, staircase via `RATE_LIMIT_MODE`)

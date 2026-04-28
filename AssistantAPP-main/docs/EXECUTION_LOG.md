@@ -1468,6 +1468,502 @@ one obvious place.
 
 ---
 
+## 2026-04-23 · P1.5 · Audit-chain completeness audit (A-013)
+
+Same branch. Closes the fifth closure item from the PRD↔Plan
+audit. PRD §5.5 target: audit-chain completeness 100%. Today no
+audit verified that every mutating handler calls `logAuditEvent`.
+A-013 is the new static check; ships informational first and
+flips to blocking once the MISSING_AUDIT count hits 0.
+
+**Files touched.**
+
+- `lib/audits/audit-chain.ts` (new) — `runAuditChain()` walks
+  `app/api/**/route.ts`, pulls mutating exports (POST / PUT /
+  PATCH / DELETE), classifies each as `AUDITED` /
+  `INTENTIONAL_NO_AUDIT` / `STUB` / `MISSING_AUDIT`. Detects
+  audit calls via regex for `logAuditEvent`, `logAudit`,
+  `prisma.auditLog.create`, `writeAudit`.
+  `INTENTIONAL_NO_AUDIT` is an inline allowlist with a written
+  justification per entry (NextAuth internals, HMAC webhooks,
+  cron handlers, signup pre-session, terms acceptance).
+- `scripts/audit-chain.ts` (new) — CLI wrapper. `--json` for
+  machine consumption; `--strict` promotes `MISSING_AUDIT` to
+  exit 1 (default informational).
+- `__tests__/lib-audits-audit-chain.test.ts` (new) — 6 cases:
+  four-bucket classification; cron handlers land as
+  `INTENTIONAL_NO_AUDIT`; read-only routes are trivially
+  `AUDITED`; the regex detects real audit calls; allowlist
+  integrity; `MISSING_AUDIT` invariants (mutating + not
+  allowlisted + not stub).
+- `package.json` — `audit:chain` / `:json` / `:strict`.
+- `.github/workflows/ci.yml` — new step after A-012:
+  `npm run audit:chain` with `continue-on-error: true`
+  (informational today).
+- `docs/EXECUTION_PLAN.md` §2.1 audit catalogue — A-012 + A-013
+  rows appended. §2.4 per-PR gate: A-012 added as blocking,
+  A-013 as informational-TBD-blocking.
+
+**Snapshot today.** A-013 scans 38 routes: 21 AUDITED /
+5 INTENTIONAL_NO_AUDIT / 0 STUB / **12 MISSING_AUDIT**. The 12
+violations are mutating routes in `app/api/cases/*`,
+`app/api/payments/*`, `app/api/documents/*`,
+`app/api/messages/*`, `app/api/service-types/*`. Each needs a
+`logAuditEvent(...)` added — tracked as a new rolling open item;
+flip to blocking once that follow-up lands.
+
+**Rolling open item added.**
+
+- [ ] Add `logAuditEvent(...)` to the 12 `MISSING_AUDIT` routes
+      identified by A-013. Promote the audit to `--strict`
+      / blocking once the count hits 0.
+
+---
+
+## 2026-04-23 · P1.4 · Cross-tenant PII access wrapper (`lib/cross-tenant-pii.ts`)
+
+Same branch. Closes the fourth closure item from the PRD↔Plan
+audit. PRD §4.10 / §5.5 target 100% audit-completeness for
+cross-tenant PII reads. `runPlatformOp` in `lib/tenants.ts`
+docstring claims an AuditLog row is written (`action =
+'platform.cross_tenant'`); the implementation doesn't emit the
+row — promise vs. delivery gap. This commit fixes the
+PII-specific half with a new wrapper.
+
+**Files touched.**
+
+- `lib/cross-tenant-pii.ts` (new) — `runCrossTenantPIIAccess(user,
+  opts, cb)` writes `AuditLog.action = 'cross_tenant_pii_access'`
+  **before** the callback runs, then delegates to `runPlatformOp`
+  for role check + AsyncLocalStorage context. Fail-closed: if
+  the audit path rejects, the cb never runs. `opts.reason`
+  (1..128 chars), `opts.targetTenantId` (required), optional
+  `opts.fieldsAccessed: string[]` for the monthly Tenant Admin
+  access summary digest per D-018.
+- `__tests__/lib-cross-tenant-pii.test.ts` (new) — 8 cases.
+  Covers audit-before-cb ordering; canonical action + metadata
+  shape; non-platform role rejection (via runPlatformOp); empty
+  / oversized reason rejection; missing targetTenantId rejection;
+  fieldsAccessed default; cb return-value passthrough.
+
+**Exports.**
+
+- `runCrossTenantPIIAccess(user, opts, cb): Promise<T>`
+- `CROSS_TENANT_PII_ACTION = 'cross_tenant_pii_access' as const`
+- `interface CrossTenantPIIAccessOptions`
+
+**Why a new wrapper, not a mutation of `runPlatformOp`.**
+`runPlatformOp` has 16+ call sites in the codebase. Mutating its
+side effects (adding a DB write) would be a diff-the-world
+change. The new wrapper is **opt-in**: code paths that read
+cross-tenant PII switch from `runPlatformOp` to this one; the
+diff is local.
+
+**Still deferred (tracked as follow-ups).**
+
+1. Actually writing the `action = 'platform.cross_tenant'` row
+   from `runPlatformOp` itself. The docstring has promised this
+   since Sprint 0.5; never delivered. Separate commit because
+   it touches the Prisma middleware path and needs regression
+   coverage on the 16 call sites.
+2. `logAuditEvent` should return `{ ok, reason }` instead of
+   swallowing errors silently, so `runCrossTenantPIIAccess` can
+   truly fail-closed in prod rather than trust a warn-only
+   audit. Minor lib refactor; separate commit.
+3. Surfacing the monthly Tenant Admin access summary (D-018) —
+   needs a new cron handler that groups
+   `action = 'cross_tenant_pii_access'` rows by `tenantId` and
+   emails / in-apps the tenant admin. Sprint 16 territory.
+
+---
+
+## 2026-04-23 · P1.3 · `advice_class` gatekeeping (helper + A-012 static audit)
+
+Same branch. Closes the third closure item from the PRD↔Plan
+audit. PRD §7.1 R1 (High severity): only a jurisdiction-licensed
+lawyer may set `Case.adviceClass = 'attorney_approved_advice'`.
+Schema allowed the value; no runtime check enforced the licensing
+rule. Fix: a deny-by-default helper + a static audit that flags
+any code path setting the literal outside the helper.
+
+**Files touched.**
+
+- `lib/rbac-advice-class.ts` (new) — `assertCanSetAdviceClass(ctx)`
+  throws `AttorneyApprovedError` (status 403) unless: target is
+  `general_information` / `firm_process` (always pass), or role
+  is `LAWYER_ADMIN` / `LAWYER_ASSOCIATE` AND
+  `User.licensedJurisdictions` includes the case's
+  `destinationJurisdiction`. Since the `licensedJurisdictions`
+  field isn't in the schema yet (Sprint 1 auth extension),
+  lawyers also deny-by-default with a schema-missing error —
+  until the field lands, only the `ALLOW_ATTORNEY_APPROVED=1`
+  dev escape (non-prod only) passes. `guardAdviceClass` is the
+  route-handler sugar returning `null | Response`.
+- `lib/audits/advice-class.ts` (new) — A-012 static audit.
+  Walks the repo, flags any `adviceClass:
+  'attorney_approved_advice'` / `adviceClass:
+  "attorney_approved_advice"` that isn't paired with an
+  `assertCanSetAdviceClass` / `guardAdviceClass` call in the
+  same file. Self-allowlists test + doc + KB + agent paths.
+- `scripts/audit-advice-class.ts` (new) — CLI wrapper.
+- `__tests__/lib-rbac-advice-class.test.ts` (new) — 7 cases:
+  general_information / firm_process always pass; non-lawyer
+  roles denied; lawyers denied (deny-by-default); missing
+  jurisdiction denied; dev escape hatch honoured outside prod;
+  ignored in prod; status 403 on error.
+- `package.json` — `audit:advice-class` + `:json` scripts.
+- `.github/workflows/ci.yml` — new required step in `gates`
+  (after A-003). Blocking per PRD §7.1 R1 Sev-1 classification.
+
+**Audit result today.** A-012 scans 305 files, finds 1 hit (the
+pattern string in `lib/audits/advice-class.ts` itself, which is
+self-allowlisted). 0 violations.
+
+**When Sprint 1 auth extension adds `User.licensedJurisdictions:
+string[]`**, the TODO block in `lib/rbac-advice-class.ts` swaps
+to the real check (`licensed.includes(ctx.caseDestinationJurisdiction)`).
+A-012 ensures no parallel write-path exists that bypasses the
+helper — when that schema change ships, the helper becomes real
+enforcement with no audit surface drift.
+
+---
+
+## 2026-04-23 · P0.2 · HITL SLA enforcement cron (`/api/cron/hitl-sla-sweep`)
+
+Same branch. Closes the second P0 gap from the PRD↔Plan audit.
+D-013 defines four HITL SLA tiers; only Marketing (24h) had a
+`vercel.json` slot and no handler. Standard / Urgent / Critical
+had neither.
+
+**Design choice: one sweep, all tiers.** `HITLApproval.slaDueAt`
+is set at creation time from the gate's `slaHours`, so a single
+`WHERE slaDueAt < now AND status = PENDING` correctly catches
+all four tiers. Separate per-tier crons would've done the same
+work 4× with no behavioural difference. 15-minute cadence is
+driven by the Critical tier (15min business-hours SLA); every
+other tier gets caught well inside its window.
+
+**Files touched.**
+
+- `app/api/cron/hitl-sla-sweep/route.ts` (new) — wraps the body
+  in `runCron`, calls `expireStale()` from `lib/agents/hitl.ts`
+  (already existed), returns `{ expired: N }` JSON. Dynamic
+  Prisma import so `SKIP_DB=1` skips the DB pull entirely.
+  500 on sweep throw (explicit so it's distinguishable from
+  `runCron` 401 / 500-misconfigured).
+- `vercel.json` — replaced `/api/cron/marketing-hitl-escalate`
+  (schedule `0 */1 * * *`, no handler) with `/api/cron/hitl-sla-
+  sweep` (schedule `*/15 * * * *`). The marketing tier is
+  caught inside the unified sweep.
+- `__tests__/api-cron-hitl-sla-sweep.test.ts` (new) — 4 cases:
+  SKIP_DB=1 short-circuit returns `{ expired: 0, skipped:
+  'SKIP_DB' }`; 401 on missing bearer in prod; X-Correlation-Id
+  stamped on success; A-005 force-dynamic guard.
+
+**Deferred (separate PR when pager integration lands):**
+
+- Per-tier telemetry (which tier each expired row belonged to —
+  needs JOIN back to agent manifest).
+- Off-hours pager for Critical tier (D-013 calls for it;
+  integration with PagerDuty / Slack hasn't been chosen yet).
+- Issue-opener integration — today the sweep's expiry count is
+  visible in Vercel logs; when the admin/approvals page grows
+  a "recently expired" pane, that's the surface.
+
+---
+
+## 2026-04-23 · P0.1 · Arabic localization skill (`skills/arabic-localization/SKILL.md`)
+
+Same branch. Closes the first P0 gap from the PRD↔Plan audit.
+PRD §4.9 #8 explicitly listed this skill file as a Sprint 0.7
+deliverable; it was never created. Content-only (no infra).
+
+**File.**
+
+- `skills/arabic-localization/SKILL.md` (new, ~180 lines). v0.1
+  frontmatter schema. Sections: dialect + register choice
+  (MSA formal, with client-portal microcopy permitted formal-
+  warm), ALA-LC name transliteration table with practical rules
+  for SEF/AIMA + GDRFA/ICA forms (no diacritics, `al-` with
+  hyphen, passport-MRZ-wins conflict resolution), numerals +
+  dates + calendars (Eastern Arabic numerals in prose; Western
+  + Gregorian on filings; Hijri parenthetical only), RTL
+  editorial traps (bidi punctuation, LRM for mixed-script
+  digits, guillemets over double-quotes, no `word-break:
+  break-all` on AR), 10-entry legal-register vocabulary freeze
+  (residency permit / golden visa / family reunification /
+  additional-evidence / client trust account / etc.) + HITL
+  review contract.
+
+**Data model implication called out.** Every `Client`,
+`Partner`, `ServiceProvider`, `LeadContact` needs BOTH
+`nameArabic` + `nameLatin` fields at creation. Single-name-field
+records are Sev-3 for any row created after Sprint 0.5. Schema
+doesn't enforce this today — captured here so Sprint 10 + Sprint
+4 both know the constraint before they add their models.
+
+**Audit result.** A-011 scans 31 articles (was 30); all FRESH.
+No INVALID / LEGACY regressions.
+
+---
+
+## 2026-04-23 · PRD ↔ Plan alignment audit
+
+Same branch. Cross-checked `docs/PRD.md` v0.3 against
+`docs/EXECUTION_PLAN.md` v1.2 + the current code state. New
+artefact: `docs/prd-plan-audit.md` (~260 lines) walks every PRD
+§3 goal / §5 metric / §6 sprint against the plan and the
+committed code.
+
+**Verdict: plan fulfils PRD, with 2 P0 closures + 3 P1 items
+before first live tenant.**
+
+**P0 (close before Phase A = done):**
+
+1. `skills/arabic-localization/SKILL.md` — explicitly required by
+   PRD §4.9 #8; currently missing from the `skills/` tree.
+   Content-only; no infra blocker.
+2. HITL SLA enforcement cron handler(s) — D-013 defines Standard
+   4h / Urgent 1h / Critical 15min business (paged off-hours) /
+   Marketing 24h. `vercel.json` carries only `marketing-hitl-
+   escalate`. The other three tiers have no handler.
+
+**P1 (close before first live tenant):**
+
+3. `advice_class` gatekeeping — PRD R1: only jurisdiction-
+   licensed lawyers may set `attorney_approved_advice`. Schema
+   allows the value; no runtime check enforces the licensing
+   constraint.
+4. Cross-tenant PII access guarantee — PRD §4.10 / §5.5 target
+   100%. Convention documented; no code guarantees every
+   `crossTenant: true` PII read writes the
+   `cross_tenant_pii_access` audit row.
+5. Audit-chain completeness audit — PRD §5.5 target 100%. Needs
+   a new static audit that walks every POST/PATCH/DELETE and
+   verifies it calls `writeAudit(…)` or is on an allowlist.
+   Peer of A-002 / A-005.
+
+**P2 (expand JIT per §10.10):**
+
+6. Sprint 13 / 16 / 11 plan recipes before their first commit.
+7. Monitoring runbook (UptimeRobot / Plausible / Sentry) — add
+   a §10.11 or §13.
+8. `TenantContract` machine-readable-fields shape → D-NNN when
+   Sprint 8.5 starts.
+
+**Structural alignment: solid.** Every PRD §3.1 goal maps to a
+plan sprint. Every §5.1 engineering gate has a plan owner or a
+landed audit. All 13 ratified decisions (D-007..D-019 +
+D-023/D-024/D-025/D-026) are either landed or tracked.
+
+**What's in the plan but not explicit in PRD** (flagged in
+audit §F): engineering-hygiene items (A-004 jurisdiction,
+A-005 dynamic-route, A-010 doc-discipline, A-011 KB freshness,
+CSRF + rate-limit middleware, issue-opener, env validator).
+These trace to PRD §5.1 / §5.5 targets without having their
+own PRD bullets — expected. If priority conflicts arise, PRD
+is the tie-breaker and these can be descoped.
+
+Full table-by-table analysis in `docs/prd-plan-audit.md`.
+
+---
+
+## 2026-04-23 · Sprint 0.7.5 audit + plan-review + 3 follow-ups (lib-audits tests, /admin/status, branch-split-plan)
+
+Same branch. Final sweep on the post-0.7 cleanup sprint after the
+"do all + review the plan + audit your work" prompt.
+
+**Audit phase.** Ran every gate against the branch HEAD:
+A-002 32 GUARDED / 5 PUBLIC / 0 UNAUTHED · A-003 0 schema +
+0 route violations · A-004 38 non-allowlisted hits (informational,
+unchanged) · A-005 28 DB / 25 STATIC / 0 violations · A-010 clean ·
+A-011 30 FRESH / 0 anything-else. YAML for the 3 workflow files
+parses; `vercel.json` + `package.json` parse. Every file referenced
+in EXECUTION_LOG entries on this branch resolves on disk. Zero
+TODO / FIXME / XXX in the new code. Test imports map to real
+exports. No regression from the refactor commit (`0408833`):
+both lib + CLI paths produce identical reports.
+
+**Plan review.** §10.1 "Current position" was stale (referenced
+the 2026-04-23 cross-repo branch as current); rewritten to reflect
+the post-0.7 cleanup PR + roadmap status. §12.1 was missing the
+`/api/status` + `/api/health` + `lib/audits/issue-opener.ts`
+entries; added. §11.5 DoD for a cron / audit calls for "fixed
+clock" coverage — A-002 is covered, but A-011 cron didn't accept
+a clock until this commit (see below).
+
+**Three follow-ups landed.**
+
+- `__tests__/lib-audits.test.ts` (new) — 16 cases. Direct unit
+  tests for `runAuditAuth` / `runAuditDynamic` / `runAuditTenant`
+  / `runAuditJurisdiction`. Cover the four-bucket structure,
+  INTENTIONAL_PUBLIC sync, runCron-in-GUARD_PATTERNS invariant,
+  schema↔allowlist agreement, allowlist-self-protection, etc.
+- `app/api/cron/audit-kb-staleness-weekly/route.ts` (changed) —
+  `?now=YYYY-MM-DD` query param threads through to
+  `runAuditKbStaleness({ now })` for past-dated replay. 400 +
+  `error: invalid_now` on garbage input. Closes the §11.5 fixed-
+  clock DoD gap. +2 cases in
+  `__tests__/api-cron-audits-other.test.ts`.
+- `app/admin/status/page.tsx` (new) — staff-only SSR dashboard
+  mirroring `/api/status`. Reads env validator + flag modes +
+  agent state; never calls the DB; safe to render even when
+  Postgres is down. Uses the existing `AppShell` + tailwind
+  utilities; matches the `/admin/approvals` pattern.
+- `docs/branch-split-plan.md` (new) — recommended split of the
+  22-commit branch into 3 sub-PRs (Audit framework / Cron +
+  middleware / Workflows + env + plan refresh) for tighter review
+  scope. Cherry-pick recipes, conflict-surface analysis, and the
+  "merge as one" alternative documented.
+
+**Rolling open items.** Consolidated and re-grouped into four
+buckets: operator-action, infra-blocked, domain/org,
+sandbox-only blockers, code follow-ups. Removed 8 already-landed
+entries that were left strikethrough'd.
+
+---
+
+## 2026-04-23 · Wire A-011 kb-staleness cron to the issue-opener
+
+Same branch. The earlier issue-opener commit wired A-002 only —
+A-003 (too noisy as N issues), A-004 (informational, too noisy),
+and A-011 (needed owner map) stayed deferred. Today's A-011 KB
+audit is 30 FRESH / 0 bad, so wiring the opener has zero
+live impact — but the pattern is correct and future staleness
+will route through it automatically.
+
+**Files touched.**
+
+- `app/api/cron/audit-kb-staleness-weekly/route.ts` (changed) —
+  for every article with `status ∈ { STALE, EXPIRED, INVALID }`
+  call `openAuditIssue` with per-status title, body, and extra
+  labels (`audit-a011`, plus `stale|expired|invalid`). LEGACY
+  explicitly skipped (informational only; the pre-v0.1 SKILL.md
+  warning shouldn't ping owners weekly). Issues are listed on
+  the response summary.
+- `docs/EXECUTION_LOG.md` — this entry.
+
+**Why no assignees field.** Article frontmatter carries
+`owner: founding-engineer` — a role slug, not a GitHub handle.
+`openAuditIssue` accepts an `assignees` array but leaving it
+empty today is correct until a role → handle map lands (new
+rolling open item).
+
+**Bodies differ by status.** STALE nudges to bump `reviewed_at`
+(no demotion). EXPIRED reminds of the AGENT_OS §6.4 auto-
+demotion (`authoritative` → `draft`) and asks for the
+`confidence:` flip. INVALID asks for a YAML shape fix, pointing
+at `skills/core/disclaimers/upl.md` as the canonical example.
+
+---
+
+## 2026-04-23 · `/api/status` staff-guarded introspection + `/api/health` 503-on-DB-down
+
+Same branch. Two complementary deploy-readiness endpoints.
+
+**Files touched.**
+
+- `app/api/status/route.ts` (new) — staff-guarded GET. Combines
+  `validateEnv()` (from the env validator), `csrfMode()` +
+  `rateLimitMode()` live flag values, per-agent
+  flag/subscription state, and best-effort `gitSha` from
+  `VERCEL_GIT_COMMIT_SHA` / `SOURCE_COMMIT` / `GIT_COMMIT` into a
+  single GET. Separate from `/api/health` because the payload
+  leaks enough env + flag detail to warrant the `runAuthed('staff')`
+  guard. Read-only; never subscribes agents. `ok: false` iff the
+  env has any errors — warnings are informational.
+- `app/api/health/route.ts` (changed) — now returns HTTP **503**
+  when the DB check throws, HTTP 200 otherwise. Uptime monitors
+  (UptimeRobot etc.) key off the status code, not the JSON
+  `db: 'error'` field — the prior 200-with-error-body would have
+  silently stayed green on their dashboards. `SKIP_DB=1` keeps
+  the 200 status (intentional dev loop, not a real down).
+- `__tests__/api-status.test.ts` (new) — 8 cases: payload shape,
+  dev-downgraded warnings, live CSRF/rate-limit mode reflection,
+  agent flag vs subscription separation, `gitSha` resolution,
+  `ok: false` on prod + missing secrets, A-005 force-dynamic
+  declaration.
+- `__tests__/api-health.test.ts` (new) — 4 cases: 200 on DB
+  success, 503 on DB error, 200 skipped under `SKIP_DB=1`, no
+  env/PII leakage in the public payload.
+
+**Why two endpoints, not one.** `/api/health` is in the A-002
+`INTENTIONAL_PUBLIC` allowlist because UptimeRobot can't carry
+a session cookie. `/api/status` is `runAuthed('staff')` because
+it exposes env-validate output, agent-flag names, and rollout-
+mode strings — none of that belongs on a public endpoint.
+
+**Operator runbook (when this lands in prod).**
+
+1. `curl -sf https://<deploy>/api/health` — expect 200 JSON
+   `{ ok: true, db: 'ok', time: ... }` within 30 s.
+2. Log in as a staff user, hit `/api/status` in the browser —
+   expect `ok: true`, `env.errors: []`, flags reflect the
+   deployed values. Any `env.errors` entries are deploy-
+   blocking (see `lib/env-validate.ts` rule table).
+
+---
+
+## 2026-04-23 · Project documentation refresh + progress snapshot
+
+Same branch. Two docs updates to consolidate what the post-0.7
+cleanup sprint delivered:
+
+**Files touched.**
+
+- `docs/SESSION_NOTES.md` — prepended a post-0.7-cleanup entry
+  summarising the 13 deliverable categories, the progress
+  snapshot, what's deliberately off the branch, and next-session
+  priorities (merge / split, flag flips, infra provisioning,
+  Supabase-connect PR).
+- `docs/EXECUTION_PLAN.md` §10.4.1 (new) — "Sprint 0.7.5 — post-
+  0.7 cleanup (landed)" formalised as a sprint entry between §10.4
+  (Sprint 0.7) and §10.5 (Sprint 8.5). Lists the 12 deliverables
+  + smoke battery + exit criteria + the flag-flip consequence
+  note.
+- `docs/EXECUTION_LOG.md` — this entry.
+
+**Progress snapshot.** Weighted against the 22-sprint roadmap in
+`Claude.md` + the 11-audit / 13-smoke catalogues in
+`EXECUTION_PLAN` §2.1 / §3.2:
+
+| Axis                                          | Complete | Notes                                         |
+|-----------------------------------------------|---------:|-----------------------------------------------|
+| Audit framework (11 audits)                   |     ~82% | 9/11 live. A-006 + A-007 pending (DB).        |
+| Cron handlers (9 declared + 2 GH Actions)     |     ~55% | 6/11 live (4 Vercel + 2 Actions). 5 DB-blocked.|
+| Smoke suite (13 planned)                      |     ~31% | S-003/009/010/013 live; rest per sprint.      |
+| Sprints shipped (22 declared)                 |     ~40% | 0, 0.1, 0.5, 0.5.1, 0.7, 0.7-bis, 0.7.5 done; 1 partial; 2+ scaffolded. |
+| Engineering infrastructure                    |     ~85% | audits/CI/tenancy/i18n/RBAC/CSRF/rate-limit/cron/env all done. |
+| Product features wired to real data           |     ~25% | UI exists, data layer blocks on Supabase.     |
+| Integration layer (Stripe/Webflow/Twilio/EL)  |     ~15% | Webflow webhook only.                         |
+| Agent OS runtime                              |     ~50% | registered + orchestrator + bootstrap; flags off. |
+| Production readiness                          |     ~35% | CI gates green; needs infra + flag flips.     |
+
+**Weighted aggregate estimate: ~45% of the full roadmap is
+complete.** The remaining 55% splits roughly:
+
+- ~25% ops / infra provisioning (operator action; Supabase
+  connect, Upstash, Stripe test keys, Webflow token, ElevenLabs
+  voice ids, SendGrid + Twilio creds).
+- ~20% feature integration that requires the above + product
+  decisions (Sprints 2-8 data wiring, Sprint 8.5 onboarding,
+  Sprint 13 marketing automation).
+- ~10% advanced features (mobile Sprint 14, outcome predictor
+  Sprint 11, marketplace billing Sprint 15, GDPR tooling Sprint
+  16).
+
+**Interpretation.** The project is past its engineering-skeleton
+phase: every audit, every guardrail, every piece of doc-discipline
+scaffolding, every cron plumbing piece is either shipped or
+unblocked. What remains is product-feature wiring that needs a
+live Postgres and product decisions, plus ops flag flips that
+are operator-triggered. Claude Code can continue to make
+progress on any integration that doesn't need credentials or
+database rows — route tests, CSRF/rate-limit flip rehearsals,
+issue-opener dry-run validation, documentation, etc.
+
+---
+
 ## 2026-04-23 · Tests for `/api/agents/bootstrap`
 
 Same branch. The earlier bootstrap commit shipped the route +
@@ -2032,19 +2528,90 @@ then flip to `enforce`.
 
 ## Rolling open items
 
-Copied from the commits above; delete lines here as they land.
+Consolidated 2026-04-23 after Sprint 0.7.5 close. Landed entries
+live as struck-through history in their original commit log entries
+above; this list keeps only what's actionable from here.
 
-- [ ] Run `npx prisma migrate dev --name sprint0-foundation && npx prisma migrate dev --name aos-phase1 && npx prisma migrate dev --name add-tenancy` once a dev DB is reachable. Until then, Prisma client types will not reflect the new models and tests that touch DB are skipped via `SKIP_DB=1`.
-- [x] ~~Post-Sprint-0.7 cleanup PR — A-005 dynamic-route audit, preflight, runCron, CSRF + rate-limit scaffolding (all landed 2026-04-23).~~
-- [x] ~~Wire `assertCsrf` into the global middleware matcher~~ (landed 2026-04-23, `CSRF_MODE=off` default; flip to `report-only` in staging, then `enforce` once logs are clean).
-- [ ] Flip `CSRF_MODE` from `off` → `report-only` on staging, then `enforce` after a clean log window.
-- [ ] Ship Upstash backend for `checkRateLimit` alongside the Upstash env vars + prod smoke. Until it lands, `RATE_LIMIT_MODE=enforce` in prod is best-effort only (in-memory Map doesn't share across Edge instances).
-- [x] ~~Wire rate-limit into `middleware.ts` with `RATE_LIMIT_MODE` (off | report-only | enforce)~~ (landed 2026-04-23, default `off`). Same staging flip as CSRF.
-- [ ] Flip `RATE_LIMIT_MODE` from `off` → `report-only` on staging once CSRF enforce is green, then `enforce` after the Upstash backend lands.
-- [x] ~~Bootstrap the Orchestrator from `/api/agents/bootstrap`~~ (landed 2026-04-23). Staff-guarded `POST` binds every `AGENT_*_ENABLED=1` agent via the now-idempotent `subscribeAgent`; `GET` is read-only introspection. Flags default OFF, so cold-start POST without flags set is a no-op.
-- [ ] Flesh out the KB v0.1 articles (`core/disclaimers/upl.md`, `core/disclaimers/outcome.md`, `core/tone/*.md`, `core/escalation/matrix.md`, `core/privacy/consent.md`, `core/privacy/retention.md`, `core/languages.md`).
-- [ ] Execute the jest suite in an environment with `node_modules` installed — none of the tests have been executed in this sandbox.
-- [ ] Port the remaining design-pack screens (Admin Service Types refresh, client portal, analytics/billing dashboards, outcome predictor) when their sprints arrive.
+**Operator-action (not code):**
+
+- [ ] Provision Vercel prod env vars: `CRON_SECRET` (required —
+      cron handlers return 500 without it), `NEXTAUTH_SECRET`
+      (required), `GITHUB_TOKEN` + `GITHUB_REPOSITORY` (issue-opener
+      log-only without them). Verify with `npm run env:check`.
+- [ ] Flip `CSRF_MODE`: staging `off` → `report-only` (one week of
+      log review) → `enforce` → prod `enforce`.
+- [ ] Flip `RATE_LIMIT_MODE`: same staircase, but hold prod
+      `enforce` until the Upstash backend lands.
+- [ ] Flip per-agent flags (`AGENT_INTAKE_ENABLED`,
+      `AGENT_DRAFTING_ENABLED`, `AGENT_EMAIL_ENABLED`) on staging,
+      POST `/api/agents/bootstrap` to bind, verify via
+      `/admin/status`.
+
+**Infra-blocked:**
+
+- [ ] Supabase connect (D-025 full checklist). Unblocks: `prisma
+      migrate dev`, the 5 DB-dependent cron handlers
+      (audit-cost-daily, deadline-alert, marketing-hitl-escalate,
+      commission-settle, analytics-rollup), real `/api/health`
+      results in prod, route-level CRUD smoke specs.
+- [ ] Upstash Redis credentials → ship `checkRateLimit` Upstash
+      backend so `RATE_LIMIT_MODE=enforce` in prod becomes
+      cross-region correct.
+- [ ] Stripe test keys + Connect client id → unblocks Sprint 8.5
+      onboarding + commission-settle cron.
+- [ ] Webflow Data API token + webhook secret → unblocks Sprint 13
+      marketing automation slice.
+- [ ] ElevenLabs AR voice id, SendGrid + Twilio test creds →
+      unblocks Sprint 5 channel smokes.
+
+**Domain / org:**
+
+- [ ] PT-licensed lawyer review of the 7 v0.1 KB articles under
+      `skills/core/` to flip `confidence: draft` → `authoritative`
+      (D-024).
+- [ ] Capture `owner → GitHub handle` map so the A-011 issue-opener
+      can populate `assignees`. Today the role slugs
+      (`founding-engineer`, `platform-marketing`,
+      `tenant-counsel-pt`, `tenant-counsel-ae`, `platform-admin`,
+      `platform-engineering`) aren't GitHub-addressable.
+- [ ] Engage UAE-licensed lawyer reviewer (v1.x).
+- [ ] Add a native AR QA reviewer to the marketing-HITL chain
+      (D-015).
+- [ ] DPO + DPA template for GDPR (Sprint 16 pre-req).
+- [ ] On-call rotation for Sev-1 paging (C-020 + B-Sev-1).
+
+**Sandbox-only blockers (lift on a real dev box):**
+
+- [ ] Execute the jest suite — `node_modules` not installable in
+      this sandbox; the 100+ tests authored here haven't been run.
+- [ ] Run `npx prisma migrate dev` once Postgres is reachable.
+
+**Code follow-ups:**
+
+- [ ] Issue #11 risky half — `@prisma/client` enum re-export,
+      `@types/react` recharts override, `lib/agents/invoke.ts`
+      generic cast. Lands on its own branch; flips
+      `legacy-checks` from informational to blocking.
+- [ ] Port remaining design-pack screens (Admin Service Types
+      refresh, client portal, analytics/billing dashboards,
+      outcome predictor) when their sprints arrive.
+- [ ] Add `logAuditEvent(...)` to the 12 `MISSING_AUDIT` routes
+      flagged by A-013 (cases, payments, documents, messages,
+      service-types). Promote A-013 from informational to
+      `--strict` / blocking once the count hits 0.
+- [ ] Actually write `AuditLog.action='platform.cross_tenant'`
+      from `runPlatformOp` itself (docstring has promised this
+      since Sprint 0.5; never delivered). Separate commit because
+      it touches Prisma middleware and needs coverage on the
+      16+ call sites.
+- [ ] `logAuditEvent` should return `{ ok, reason }` instead of
+      swallowing errors silently, so `runCrossTenantPIIAccess`
+      can truly fail-closed in prod (today's `.catch` → warn
+      only).
+- [ ] Swap `lib/rbac-advice-class.ts`'s deny-by-default block
+      for the real `User.licensedJurisdictions.includes(...)`
+      check once Sprint 1 auth extension adds the field to the
+      schema.
 
 ---
 
